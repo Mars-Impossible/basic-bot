@@ -1,4 +1,4 @@
-const { TeamsActivityHandler, TurnContext, CardFactory } = require("botbuilder");
+const { TeamsActivityHandler, TurnContext, CardFactory, ActivityTypes } = require("botbuilder");
 const { ConversationState, MemoryStorage } = require('botbuilder');
 
 class TeamsBot extends TeamsActivityHandler {
@@ -6,7 +6,7 @@ class TeamsBot extends TeamsActivityHandler {
     super();
 
     // 设置存储和状态管理
-    this.storage = new MemoryStorage();
+    this.storage = new MemoryStorage(); //不适合生产环境
     this.conversationState = new ConversationState(this.storage);
     this.historyAccessor = this.conversationState.createProperty('history');
 
@@ -63,6 +63,44 @@ class TeamsBot extends TeamsActivityHandler {
         });
 
         await context.sendActivity({ attachments: [card] });
+      } else if (txt === "citation") {
+        await context.sendActivity({
+          type: ActivityTypes.Message,
+          text: "This is a message with citations [1][2]. You can click on the citation numbers to view more information.",
+          entities: [{
+            type: "https://schema.org/Message",
+            "@type": "Message",
+            "@context": "https://schema.org",
+            // additionalType: ["AIGeneratedContent"],  // 启用 AI 标签
+            citation: [
+              {
+                "@type": "Claim",
+                position: 1,
+                appearance: {
+                  "@type": "DigitalDocument",
+                  name: "Teams Bot documentation",
+                  url: "https://learn.microsoft.com/en-us/microsoftteams/platform/bots/design/bots",
+                  abstract: "Teams Bot documentation",
+                  keywords: ["Teams", "Bot", "documentation"]
+                }
+              },
+              {
+                "@type": "Claim",
+                position: 2,
+                appearance: {
+                  "@type": "DigitalDocument",
+                  name: "Citation example",
+                  url: "https://example.com/citation",
+                  abstract: "This is the detailed explanation of the second citation",
+                  keywords: ["example", "citation", "Teams"]
+                }
+              }
+            ]
+          }],
+          channelData: {
+            feedbackLoopEnabled: true  // 启用反馈按钮
+          }
+        });
       } else if (txt === "delete history") {
         await context.sendActivities([
           { type: 'typing' },
