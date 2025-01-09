@@ -32,37 +32,107 @@ class TeamsBot extends TeamsActivityHandler {
               type: "TextBlock",
               text: "Now you have triggered a command that sends this card! Go to documentations to learn more about Adaptive Card and Commands in Teams Bot. Click on \"I like this\" below if you think this is helpful.",
               wrap: true
-            },
-            {
-              type: "FactSet",
-              facts: [
-                {
-                  title: "Like Count:",
-                  value: "0"
-                }
-              ]
             }
+            // {
+            //   type: "FactSet",
+            //   facts: [
+            //     {
+            //       title: "Like Count:",
+            //       value: "0"
+            //     }
+            //   ]
+            // }
           ],
           actions: [
             {
-              type: "Action.Submit",
-              title: "I Like This!",
-              data: { action: "like" }
+              type: "Action.ShowCard",
+              title: "Show Details",
+              card: {
+                type: "AdaptiveCard",
+                body: [
+                  {
+                    type: "TextBlock",
+                    text: "Additional information here"
+                  },
+                  {
+                    type: "Input.Text",
+                    id: "comment",
+                    placeholder: "Add your comment"
+                  }
+                ],
+                actions: [
+                  {
+                    type: "Action.Submit",
+                    title: "Submit Comment",
+                    data: { action: "submitComment" }
+                  }
+                ]
+              }
+            },
+            {
+              type: "Action.ToggleVisibility",
+              title: "Show/Hide Details",
+              targetElements: ["detailsSection"]
             },
             {
               type: "Action.OpenUrl",
               title: "Adaptive Card Docs",
               url: "https://learn.microsoft.com/en-us/adaptive-cards/"
             },
-            {
-              type: "Action.OpenUrl",
-              title: "Bot Command Docs",
-              url: "https://learn.microsoft.com/en-us/microsoftteams/platform/bots/how-to/create-a-bot-commands-menu"
-            }
+          //   {
+          //     // Teams特有的执行动作
+          //     type: "Action.Execute",
+          //     title: "Echo History",
+          //     verb: "processData",  // 后端处理时的标识符
+          //     data: {
+          //         operationType: "analyze",
+          //         parameters: {
+          //             source: "userAction"
+          //         }
+          //     }
+          // },
+          // {
+          //     // 打开任务模块
+          //     type: "Action.Submit",
+          //     title: "Open Task Module",
+          //     data: {
+          //         msteams: {
+          //             type: "task/fetch",
+          //             taskModule: {
+          //                 title: "Task Module",
+          //                 height: "medium",
+          //                 width: "medium"
+          //             }
+          //         }
+          //     }
+          // }
           ]
         });
 
         await context.sendActivity({ attachments: [card] });
+      } else if (txt === "news") {
+        const heroCard = CardFactory.heroCard(
+          'Seattle Center Monorail',
+          'Seattle Center Monorail',
+          [{
+            url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/49/Seattle_monorail01_2008-02-25.jpg/1024px-Seattle_monorail01_2008-02-25.jpg'
+          }],
+          [{
+            type: 'openUrl',
+            title: 'Official website',
+            value: 'https://www.seattlemonorail.com'
+          },
+          {
+            type: 'openUrl',
+            title: 'Wikipeda page',
+            value: 'https://en.wikipedia.org/wiki/Seattle_Center_Monorail'
+          }],
+          {
+            text: 'The Seattle Center Monorail is an elevated train line between Seattle Center (near the Space Needle) and downtown Seattle. It was built for the 1962 World\'s Fair. Its original two trains, completed in 1961, are still in service.'
+          }
+        );
+
+        await context.sendActivity({ attachments: [heroCard] });
       } else if (txt === "citation") {
         await context.sendActivity({
           type: ActivityTypes.Message,
