@@ -1,11 +1,19 @@
 const { TeamsActivityHandler, TurnContext, CardFactory } = require("botbuilder");
+const { ConversationState, MemoryStorage } = require('botbuilder');
 
 class TeamsBot extends TeamsActivityHandler {
   constructor() {
     super();
 
+    // 设置存储和状态管理
+    this.storage = new MemoryStorage();
+    this.conversationState = new ConversationState(this.storage);
+    this.historyAccessor = this.conversationState.createProperty('history');
+
     this.onMessage(async (context, next) => {
-      console.log("Running with Message Activity.");
+      // 获取当前对话的历史记录
+      const history = await this.historyAccessor.get(context, []);
+      
       const removedMentionText = TurnContext.removeRecipientMention(context.activity);
       const txt = removedMentionText.toLowerCase().replace(/\n|\r/g, "").trim();
 
@@ -55,25 +63,55 @@ class TeamsBot extends TeamsActivityHandler {
         });
 
         await context.sendActivity({ attachments: [card] });
+      } else if (txt === "delete history") {
+        // 清空历史记录
+        await this.historyAccessor.set(context, []);
+        await context.sendActivity('历史记录已清空！');
       } else {
+        // 添加新消息到历史记录
+        history.push({
+          role: 'user',
+          content: txt
+        });
+        
+        // 保持最多3条记录
+        if (history.length > 3) {
+          history.shift();
+        }
+        
+        // 保存更新后的历史记录
+        await this.historyAccessor.set(context, history);
+
         try {
-          // 使用 httpbin.org 的 echo API
           const response = await fetch('https://httpbin.org/post', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ message: txt })
+            body: JSON.stringify({ 
+              message: txt,
+              history: history 
+            })
           });
           
           const data = await response.json();
-          await context.sendActivity(`API Response: ${data.json.message}`);
+          // 构建历史消息展示
+          let historyMessage = '历史消息:\n';
+          history.forEach((msg, index) => {
+            historyMessage += `${index + 1}. ${msg.content}\n`;
+          });
+          
+          // 发送当前消息和历史记录
+          await context.sendActivity(historyMessage);
+          
         } catch (error) {
-          console.error('Error calling echo API:', error);
-          await context.sendActivity('Sorry, there was an error processing your request.');
+          console.error('Error:', error);
+          await context.sendActivity('Sorry, there was an error.');
         }
       }
       
+      // 保存状态
+      await this.conversationState.saveChanges(context);
       await next();
     });
 
