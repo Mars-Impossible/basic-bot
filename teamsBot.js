@@ -64,9 +64,11 @@ class TeamsBot extends TeamsActivityHandler {
 
         await context.sendActivity({ attachments: [card] });
       } else if (txt === "delete history") {
-        // 清空历史记录
+        await context.sendActivities([
+          { type: 'typing' },
+          { type: 'message', text: 'History cleared!' }
+        ]);
         await this.historyAccessor.set(context, []);
-        await context.sendActivity('历史记录已清空！');
       } else {
         // 添加新消息到历史记录
         history.push({
@@ -95,18 +97,23 @@ class TeamsBot extends TeamsActivityHandler {
           });
           
           const data = await response.json();
-          // 构建历史消息展示
-          let historyMessage = '历史消息:\n';
+          let historyMessage = 'History:\n';
           history.forEach((msg, index) => {
             historyMessage += `${index + 1}. ${msg.content}\n`;
           });
           
-          // 发送当前消息和历史记录
-          await context.sendActivity(historyMessage);
+          // 发送typing状态和消息
+          await context.sendActivities([
+            { type: 'typing' },
+            { type: 'message', text: historyMessage }
+          ]);
           
         } catch (error) {
           console.error('Error:', error);
-          await context.sendActivity('Sorry, there was an error.');
+          await context.sendActivities([
+            { type: 'typing' },
+            { type: 'message', text: 'Sorry, there was an error.' }
+          ]);
         }
       }
       
