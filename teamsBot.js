@@ -243,6 +243,103 @@ class TeamsBot extends TeamsActivityHandler {
       await next();
     });
   }
+
+  // 处理搜索查询
+  async handleTeamsMessagingExtensionQuery(context, query) {
+    const searchQuery = query.parameters[0].value;
+    try {
+      // TODO: 这里替换为实际的API调用
+      // const response = await fetch('your-search-api-endpoint', {
+      //     method: 'GET',
+      //     headers: {
+      //         'Authorization': 'Bearer ' + token,
+      //         'Content-Type': 'application/json'
+      //     }
+      // });
+      // const results = await response.json();
+
+      // 模拟搜索结果
+      const results = [
+        {
+          id: '1',
+          title: 'Sample Document 1.pdf',
+          description: 'Sample description for document 1',
+          lastModified: '2024-03-20',
+          size: '1.2 MB'
+        },
+        {
+          id: '2',
+          title: 'Sample Document 2.docx',
+          description: 'Sample description for document 2',
+          lastModified: '2024-03-19',
+          size: '2.5 MB'
+        }
+      ];
+
+      // 转换结果为卡片
+      return {
+        composeExtension: {
+          type: 'result',
+          attachmentLayout: 'list',
+          attachments: results.map(file => ({
+            contentType: 'application/vnd.microsoft.card.adaptive',
+            content: {
+              type: 'AdaptiveCard',
+              version: '1.0',
+              body: [
+                {
+                  type: 'TextBlock',
+                  text: file.title,
+                  weight: 'bolder',
+                  size: 'medium'
+                },
+                {
+                  type: 'TextBlock',
+                  text: file.description,
+                  wrap: true
+                },
+                {
+                  type: 'FactSet',
+                  facts: [
+                    {
+                      title: 'Last Modified:',
+                      value: file.lastModified
+                    },
+                    {
+                      title: 'Size:',
+                      value: file.size
+                    }
+                  ]
+                }
+              ],
+              actions: [
+                {
+                  type: 'Action.Submit',
+                  title: 'Share',
+                  data: {
+                    msteams: {
+                      type: 'messageBack',
+                      text: `Sharing file: ${file.title}`
+                    },
+                    fileId: file.id
+                  }
+                }
+              ]
+            }
+          }))
+        }
+      };
+    } catch (error) {
+      console.error('Search error:', error);
+      return {
+        composeExtension: {
+          type: 'result',
+          attachmentLayout: 'list',
+          attachments: []
+        }
+      };
+    }
+  }
 }
 
 module.exports.TeamsBot = TeamsBot;

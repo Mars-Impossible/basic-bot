@@ -45,7 +45,33 @@
             ]
         }
     ],
-    "composeExtensions": [],
+    "composeExtensions": [
+        {
+            "botId": "${{BOT_ID}}",
+            "commands": [
+                {
+                    "id": "searchFiles",
+                    "type": "query",
+                    "title": "Search Files",
+                    "description": "Search for files to share",
+                    "initialRun": false,
+                    "fetchTask": false,
+                    "context": [
+                        "compose",
+                        "commandBox"
+                    ],
+                    "parameters": [
+                        {
+                            "name": "searchQuery",
+                            "title": "Search Query",
+                            "description": "Enter your search terms",
+                            "inputType": "text"
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
     "configurableTabs": [],
     "staticTabs": [],
     "permissions": [
