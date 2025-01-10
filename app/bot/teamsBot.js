@@ -249,67 +249,36 @@ class TeamsBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionQuery(context, query) {
     const searchQuery = query.parameters[0].value;
     try {
-      // 使用 contextSearch 获取搜索结果
       const results = await contextSearch(searchQuery);
-      
-      // 确保返回的是数组
-      if (!Array.isArray(results)) {
-        console.log('Invalid response format:', results);
-        throw new Error('Invalid response format');
-      }
+      const attachments = [];
+
+      results.forEach(result => {
+        // 创建一个简单的预览卡片，只显示名称
+        const heroCard = CardFactory.heroCard(
+          result.name || result.title || 'No Title'  // 只显示名称
+        );
+
+        // 预览卡片同样只显示名称，但包含完整数据供选择时使用
+        const preview = CardFactory.heroCard(
+          result.name || result.title || 'No Title'
+        );
+        preview.content.tap = { 
+          type: 'invoke', 
+          value: result  // 存储完整的结果数据
+        };
+
+        const attachment = { ...heroCard, preview };
+        attachments.push(attachment);
+      });
 
       return {
         composeExtension: {
           type: 'result',
           attachmentLayout: 'list',
-          attachments: results.map(item => ({
-            contentType: 'application/vnd.microsoft.card.adaptive',
-            content: {
-              type: 'AdaptiveCard',
-              version: '1.0',
-              body: [
-                {
-                  type: 'TextBlock',
-                  text: item.title || item.name,
-                  weight: 'bolder',
-                  size: 'medium'
-                },
-                {
-                  type: 'TextBlock',
-                  text: `Type: ${item.targetType}`,
-                  wrap: true
-                },
-                {
-                  type: 'FactSet',
-                  facts: [
-                    {
-                      title: 'ID:',
-                      value: item.relatedId
-                    },
-                    {
-                      title: 'Menu ID:',
-                      value: item.tagMenuId
-                    }
-                  ]
-                }
-              ],
-              actions: [
-                {
-                  type: 'Action.Submit',
-                  title: 'Share',
-                  data: {
-                    msteams: {
-                      type: 'messageBack',
-                      text: `Sharing: ${item.title || item.name}`
-                    },
-                    itemId: item.relatedId
-                  }
-                }
-              ]
-            }
-          }))
+          attachments: attachments
         }
       };
+
     } catch (error) {
       console.error('Search error:', error);
       return {
@@ -320,6 +289,49 @@ class TeamsBot extends TeamsActivityHandler {
         }
       };
     }
+  }
+
+  // 处理选中项，生成与原代码相同的 Adaptive Card
+  async handleTeamsMessagingExtensionSelectItem(context, obj) {
+    return {
+      composeExtension: {
+        type: 'result',
+        attachmentLayout: 'list',
+        attachments: [{
+          contentType: 'application/vnd.microsoft.card.adaptive',
+          content: {
+            type: 'AdaptiveCard',
+            version: '1.0',
+            body: [
+              {
+                type: 'TextBlock',
+                text: obj.title || obj.name,
+                weight: 'bolder',
+                size: 'medium'
+              },
+              {
+                type: 'TextBlock',
+                text: `Type: ${obj.targetType}`,
+                wrap: true
+              },
+              {
+                type: 'FactSet',
+                facts: [
+                  {
+                    title: 'ID:',
+                    value: obj.relatedId
+                  },
+                  {
+                    title: 'Menu ID:',
+                    value: obj.tagMenuId
+                  }
+                ]
+              }
+            ]
+          }
+        }]
+      }
+    };
   }
 }
 
