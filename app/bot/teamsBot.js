@@ -1,5 +1,6 @@
 const { TeamsActivityHandler, TurnContext, CardFactory, ActivityTypes } = require("botbuilder");
 const { ConversationState, MemoryStorage } = require('botbuilder');
+const { contextSearch } = require('../api/search');  // 引入 contextSearch
 
 class TeamsBot extends TeamsActivityHandler {
   constructor() {
@@ -248,40 +249,20 @@ class TeamsBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionQuery(context, query) {
     const searchQuery = query.parameters[0].value;
     try {
-      // TODO: 这里替换为实际的API调用
-      // const response = await fetch('your-search-api-endpoint', {
-      //     method: 'GET',
-      //     headers: {
-      //         'Authorization': 'Bearer ' + token,
-      //         'Content-Type': 'application/json'
-      //     }
-      // });
-      // const results = await response.json();
+      // 使用 contextSearch 获取搜索结果
+      const results = await contextSearch(searchQuery);
+      
+      // 确保返回的是数组
+      if (!Array.isArray(results)) {
+        console.log('Invalid response format:', results);
+        throw new Error('Invalid response format');
+      }
 
-      // 模拟搜索结果
-      const results = [
-        {
-          id: '1',
-          title: 'Sample Document 1.pdf',
-          description: 'Sample description for document 1',
-          lastModified: '2024-03-20',
-          size: '1.2 MB'
-        },
-        {
-          id: '2',
-          title: 'Sample Document 2.docx',
-          description: 'Sample description for document 2',
-          lastModified: '2024-03-19',
-          size: '2.5 MB'
-        }
-      ];
-
-      // 转换结果为卡片
       return {
         composeExtension: {
           type: 'result',
           attachmentLayout: 'list',
-          attachments: results.map(file => ({
+          attachments: results.map(item => ({
             contentType: 'application/vnd.microsoft.card.adaptive',
             content: {
               type: 'AdaptiveCard',
@@ -289,25 +270,25 @@ class TeamsBot extends TeamsActivityHandler {
               body: [
                 {
                   type: 'TextBlock',
-                  text: file.title,
+                  text: item.title || item.name,
                   weight: 'bolder',
                   size: 'medium'
                 },
                 {
                   type: 'TextBlock',
-                  text: file.description,
+                  text: `Type: ${item.targetType}`,
                   wrap: true
                 },
                 {
                   type: 'FactSet',
                   facts: [
                     {
-                      title: 'Last Modified:',
-                      value: file.lastModified
+                      title: 'ID:',
+                      value: item.relatedId
                     },
                     {
-                      title: 'Size:',
-                      value: file.size
+                      title: 'Menu ID:',
+                      value: item.tagMenuId
                     }
                   ]
                 }
@@ -319,9 +300,9 @@ class TeamsBot extends TeamsActivityHandler {
                   data: {
                     msteams: {
                       type: 'messageBack',
-                      text: `Sharing file: ${file.title}`
+                      text: `Sharing: ${item.title || item.name}`
                     },
-                    fileId: file.id
+                    itemId: item.relatedId
                   }
                 }
               ]
