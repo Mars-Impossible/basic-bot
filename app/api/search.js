@@ -1,9 +1,9 @@
 const request = require('./request');
 
-const contextSearch = async (keywords) => {
+const contextSearch = async (keywords, modulesFilterStr = 'TargetTypes=1&TargetTypes=2&TargetTypes=3&TargetTypes=4&TargetTypes=5') => {
   try {
     const res = await request({
-      url: '/Search/ContextSearch',
+      url: `/Search/ContextSearch?${modulesFilterStr}`,
       method: 'GET',
       params: {
         Keywords: keywords
@@ -16,10 +16,10 @@ const contextSearch = async (keywords) => {
   }
 };
 
-const keySearch = async (keywords) => {
+const keySearch = async (keywords, modulesFilterStr = 'TargetTypes=1&TargetTypes=2&TargetTypes=3') => {
   try {
     const res = await request({
-      url: '/Search/KeySearch',
+      url: `/Search/KeySearch?${modulesFilterStr}`,
       method: 'GET',
       params: {
         Keywords: keywords
