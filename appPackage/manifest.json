@@ -48,22 +48,35 @@
     "composeExtensions": [
         {
             "botId": "${{BOT_ID}}",
+            "canUpdateConfiguration": true,
             "commands": [
                 {
-                    "id": "searchFiles",
-                    "type": "query",
-                    "title": "Search Files",
-                    "description": "Search for files to share",
-                    "initialRun": false,
-                    "fetchTask": false,
+                    "id": "aiSearch",
                     "context": [
                         "compose",
                         "commandBox"
                     ],
+                    "description": "AI Search",
+                    "title": "AI Search",
+                    "type": "query",
                     "parameters": [
                         {
                             "name": "searchQuery",
                             "title": "Search Query",
+                            "description": "Enter your search terms",
+                            "inputType": "text"
+                        }
+                    ]
+                },
+                {
+                    "id": "keySearch",
+                    "title": "Key Search",
+                    "initialRun": false,
+                    "description": "Search by key",
+                    "parameters": [
+                        {
+                            "name": "name",
+                            "title": "Name",
                             "description": "Enter your search terms",
                             "inputType": "text"
                         }

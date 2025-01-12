@@ -1,6 +1,6 @@
 const { TeamsActivityHandler, TurnContext, CardFactory, ActivityTypes } = require("botbuilder");
 const { ConversationState, MemoryStorage } = require('botbuilder');
-const { contextSearch } = require('../api/search');  // 引入 contextSearch
+const { contextSearch, keySearch } = require('../api/search');  // 引入 contextSearch
 
 class TeamsBot extends TeamsActivityHandler {
   constructor() {
@@ -248,46 +248,90 @@ class TeamsBot extends TeamsActivityHandler {
   // 处理搜索查询
   async handleTeamsMessagingExtensionQuery(context, query) {
     const searchQuery = query.parameters[0].value;
-    try {
-      const results = await contextSearch(searchQuery);
-      const attachments = [];
+    
+    if (query.commandId === 'aiSearch') {
+      try {
+        const results = await contextSearch(searchQuery);
+        const attachments = [];
 
-      results.forEach(result => {
-        // 创建一个简单的预览卡片，只显示名称
-        const heroCard = CardFactory.heroCard(
-          result.name || result.title || 'No Title'  // 只显示名称
-        );
+        if (!results || !Array.isArray(results)) {
+          console.log('Invalid results format:', results);
+          return null;
+        }
 
-        // 预览卡片同样只显示名称，但包含完整数据供选择时使用
-        const preview = CardFactory.heroCard(
-          result.name || result.title || 'No Title'
-        );
-        preview.content.tap = { 
-          type: 'invoke', 
-          value: result  // 存储完整的结果数据
+        console.log('Context search results:', results); // 添加日志
+
+        results.forEach(result => {
+          const heroCard = CardFactory.heroCard(
+            result.name || result.title || 'No Title'
+          );
+
+          // 预览卡片同样只显示名称，但包含完整数据供选择时使用
+          const preview = CardFactory.heroCard(
+            result.name || result.title || 'No Title'
+          );
+          preview.content.tap = { 
+            type: 'invoke', 
+            value: result
+          };
+
+          const attachment = { ...heroCard, preview };
+          attachments.push(attachment);
+        });
+
+        return {
+          composeExtension: {
+            type: 'result',
+            attachmentLayout: 'list',
+            attachments: attachments
+          }
         };
+      } catch (error) {
+        console.error('Context search error:', error);
+        return null;
+      }
+    }
+    else if (query.commandId === 'keySearch') {
+      try {
+        const results = await keySearch(searchQuery);
+        const attachments = [];
 
-        const attachment = { ...heroCard, preview };
-        attachments.push(attachment);
-      });
-
-      return {
-        composeExtension: {
-          type: 'result',
-          attachmentLayout: 'list',
-          attachments: attachments
+        if (!results || !Array.isArray(results)) {
+          console.log('Invalid results format:', results);
+          return null;
         }
-      };
 
-    } catch (error) {
-      console.error('Search error:', error);
-      return {
-        composeExtension: {
-          type: 'result',
-          attachmentLayout: 'list',
-          attachments: []
-        }
-      };
+        console.log('Key search results:', results); // 添加日志
+
+        results.forEach(result => {
+          // 使用相同的显示格式
+          const heroCard = CardFactory.heroCard(
+            result.name || result.title || 'No Title'
+          );
+
+          const preview = CardFactory.heroCard(
+            result.name || result.title || 'No Title'
+          );
+          preview.content.tap = { 
+            type: 'invoke', 
+            value: result
+          };
+
+          const attachment = { ...heroCard, preview };
+          attachments.push(attachment);
+        });
+
+        return {
+          composeExtension: {
+            type: 'result',
+            attachmentLayout: 'list',
+            attachments: attachments
+          }
+        };
+      } catch (error) {
+        console.error('Key search error:', error);
+        return null;
+      }
     }
   }
 
