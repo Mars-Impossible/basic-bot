@@ -75,8 +75,8 @@
                     "description": "Search by key",
                     "parameters": [
                         {
-                            "name": "name",
-                            "title": "Name",
+                            "name": "searchQuery",
+                            "title": "Search Query",
                             "description": "Enter your search terms",
                             "inputType": "text"
                         }

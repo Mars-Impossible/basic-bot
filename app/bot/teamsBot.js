@@ -249,8 +249,8 @@ class TeamsBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionQuery(context, query) {
     const searchQuery = query.parameters[0].value;
     
-    if (query.commandId === 'aiSearch') {
-      try {
+    try {
+      if (query.commandId === 'aiSearch') {
         const results = await contextSearch(searchQuery);
         const attachments = [];
 
@@ -286,13 +286,7 @@ class TeamsBot extends TeamsActivityHandler {
             attachments: attachments
           }
         };
-      } catch (error) {
-        console.error('Context search error:', error);
-        return null;
-      }
-    }
-    else if (query.commandId === 'keySearch') {
-      try {
+      } else if (query.commandId === 'keySearch') {
         const results = await keySearch(searchQuery);
         const attachments = [];
 
@@ -328,10 +322,10 @@ class TeamsBot extends TeamsActivityHandler {
             attachments: attachments
           }
         };
-      } catch (error) {
-        console.error('Key search error:', error);
-        return null;
       }
+    } catch (error) {
+      console.error('Error in handleTeamsMessagingExtensionQuery:', error);
+      throw error;
     }
   }
 
@@ -349,7 +343,7 @@ class TeamsBot extends TeamsActivityHandler {
             body: [
               {
                 type: 'TextBlock',
-                text: obj.title || obj.name,
+                text: obj.name,
                 weight: 'bolder',
                 size: 'medium'
               },
