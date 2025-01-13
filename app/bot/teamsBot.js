@@ -365,6 +365,13 @@ class TeamsBot extends TeamsActivityHandler {
                   }
                 ]
               }
+            ],
+            actions: [
+              {
+                type: 'Action.OpenUrl',
+                title: 'Chat',
+                url: 'https://newchat.arencore.me/?openExternal=true'
+              }
             ]
           }
         }]
