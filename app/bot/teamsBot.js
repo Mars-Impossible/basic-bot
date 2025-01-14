@@ -246,8 +246,14 @@ class TeamsBot extends TeamsActivityHandler {
 
   // 处理搜索查询
   async handleTeamsMessagingExtensionQuery(context, query) {
-    const searchQuery = query.parameters[0].value;
-    
+    const searchQuery = query.parameters[0].value?.trim();
+
+    // 检查搜索条件
+    if (!searchQuery || searchQuery.length < 3) {
+      return null;
+    }
+
+
     try {
       if (query.commandId === 'aiSearch') {
         const startTime = Date.now();
@@ -331,7 +337,7 @@ class TeamsBot extends TeamsActivityHandler {
         };
       }
     } catch (error) {
-      console.error('Error in handleTeamsMessagingExtensionQuery:', error);
+      console.error('Search error:', error);
       throw error;
     }
   }
