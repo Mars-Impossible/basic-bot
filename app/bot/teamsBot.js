@@ -1,7 +1,6 @@
 const { TeamsActivityHandler, TurnContext, CardFactory, ActivityTypes } = require("botbuilder");
 const { ConversationState, MemoryStorage } = require('botbuilder');
-const { contextSearch, keySearch } = require('../api/search');  // 引入 contextSearch
-
+const { contextSearch, keySearch, queryContactList } = require('../api/search'); 
 class TeamsBot extends TeamsActivityHandler {
   constructor() {
     super();
@@ -251,7 +250,11 @@ class TeamsBot extends TeamsActivityHandler {
     
     try {
       if (query.commandId === 'aiSearch') {
+        const startTime = Date.now();
+        console.log(`[ContextSearch] Start time: ${startTime}`);
         const results = await contextSearch(searchQuery);
+        const endTime = Date.now();
+        console.log(`[ContextSearch] End time: ${endTime}`);
         const attachments = [];
 
         if (!results || !Array.isArray(results)) {
@@ -287,7 +290,11 @@ class TeamsBot extends TeamsActivityHandler {
           }
         };
       } else if (query.commandId === 'keySearch') {
+        const startTime = Date.now();
+        console.log(`[KeySearch] Start time: ${startTime}`);
         const results = await keySearch(searchQuery);
+        const endTime = Date.now();
+        console.log(`[KeySearch] End time: ${endTime}`);
         const attachments = [];
 
         if (!results || !Array.isArray(results)) {
@@ -331,52 +338,104 @@ class TeamsBot extends TeamsActivityHandler {
 
   // 处理选中项，生成与原代码相同的 Adaptive Card
   async handleTeamsMessagingExtensionSelectItem(context, obj) {
-    return {
-      composeExtension: {
-        type: 'result',
-        attachmentLayout: 'list',
-        attachments: [{
-          contentType: 'application/vnd.microsoft.card.adaptive',
-          content: {
-            type: 'AdaptiveCard',
-            version: '1.0',
-            body: [
-              {
-                type: 'TextBlock',
-                text: obj.name,
-                weight: 'bolder',
-                size: 'medium'
-              },
-              {
-                type: 'TextBlock',
-                text: `Type: ${obj.targetType}`,
-                wrap: true
-              },
-              {
-                type: 'FactSet',
-                facts: [
-                  {
-                    title: 'ID:',
-                    value: obj.relatedId
-                  },
-                  {
-                    title: 'Menu ID:',
-                    value: obj.tagMenuId
-                  }
-                ]
-              }
-            ],
-            actions: [
-              {
-                type: 'Action.OpenUrl',
-                title: 'Chat',
-                url: 'https://newchat.arencore.me/?openExternal=true'
-              }
-            ]
-          }
-        }]
+    console.log('Selected item data:', obj);
+    try {
+      // 调用 queryContactList 获取联系人信息
+      const contactData = await queryContactList({
+        tagMappingMenuId: obj.tagMenuId,
+        domains: [],  // 可以为空
+        keywords: obj.relatedId
+      });
+
+      // 获取第一个联系人信息
+      const contact = contactData?.[0];
+      console.log('Contact data:', contact);
+      
+      if (!contact) {
+        throw new Error('No contact information found');
       }
-    };
+
+      // 构建联系人信息卡片
+      return {
+        composeExtension: {
+          type: 'result',
+          attachmentLayout: 'list',
+          attachments: [{
+            contentType: 'application/vnd.microsoft.card.adaptive',
+            content: {
+              type: 'AdaptiveCard',
+              version: '1.0',
+              body: [
+                {
+                  type: 'TextBlock',
+                  text: contact.fullName || 'Unknown Name',
+                  weight: 'bolder',
+                  size: 'medium'
+                },
+                {
+                  type: 'FactSet',
+                  facts: [
+                    {
+                      title: 'Email:',
+                      value: contact.email || 'N/A'
+                    },
+                    {
+                      title: 'Phone:',
+                      value: contact.phone || 'N/A'
+                    },
+                    {
+                      title: 'Mobile:',
+                      value: contact.mobile || 'N/A'
+                    },
+                    {
+                      title: 'Address:',
+                      value: contact.fullAddress || 'N/A'
+                    },
+                    {
+                      title: 'Company:',
+                      value: contact.relatedAccount?.name || 'N/A'
+                    }
+                  ]
+                },
+                {
+                  type: 'TextBlock',
+                  text: contact.overview || '',
+                  wrap: true
+                }
+              ],
+              actions: [
+                {
+                  type: 'Action.OpenUrl',
+                  title: 'Chat',
+                  url: 'https://newchat.arencore.me/?openExternal=true'
+                }
+              ]
+            }
+          }]
+        }
+      };
+    } catch (error) {
+      console.error('Error in handleTeamsMessagingExtensionSelectItem:', error);
+      // 返回错误信息卡片
+      return {
+        composeExtension: {
+          type: 'result',
+          attachmentLayout: 'list',
+          attachments: [{
+            contentType: 'application/vnd.microsoft.card.adaptive',
+            content: {
+              type: 'AdaptiveCard',
+              version: '1.0',
+              body: [{
+                type: 'TextBlock',
+                text: 'Failed to load contact information',
+                color: 'attention'
+              }]
+            }
+          }]
+        }
+      };
+    }
   }
 }
 
