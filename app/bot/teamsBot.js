@@ -1,6 +1,16 @@
 const { TeamsActivityHandler, TurnContext, CardFactory, ActivityTypes } = require("botbuilder");
 const { ConversationState, MemoryStorage } = require('botbuilder');
-const { contextSearch, keySearch, queryContactList } = require('../api/search'); 
+const { contextSearch, keySearch, queryContactList, queryAccountList, queryFundList, queryActivityList, queryDocumentList } = require('../api/search'); 
+const  aiChatConfig  = require('../store/aiChatConfig');
+const { 
+  createContactCard,
+  createAccountCard,
+  createFundCard,
+  createActivityCard,
+  createDocumentCard,
+  createErrorCard,
+} = require('../ui/searchCard');
+
 class TeamsBot extends TeamsActivityHandler {
   constructor() {
     super();
@@ -248,96 +258,52 @@ class TeamsBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionQuery(context, query) {
     const searchQuery = query.parameters[0].value?.trim();
 
-    // 检查搜索条件
     if (!searchQuery || searchQuery.length < 3) {
       return null;
     }
 
-
     try {
-      if (query.commandId === 'aiSearch') {
-        const startTime = Date.now();
-        console.log(`[ContextSearch] Start time: ${startTime}`);
-        const results = await contextSearch(searchQuery);
-        const endTime = Date.now();
-        console.log(`[ContextSearch] End time: ${endTime}`);
-        const attachments = [];
+      // 根据命令ID选择搜索方法
+      const searchMethod = query.commandId === 'aiSearch' ? contextSearch : keySearch;
+      console.log('Search method:', query.commandId);
+      const startTime = Date.now();
+      console.log(`Start time: ${startTime}`);
 
-        if (!results || !Array.isArray(results)) {
-          console.log('Invalid results format:', results);
-          return null;
+      const results = await searchMethod(searchQuery);
+      console.log('Search results:', results);  
+      const endTime = Date.now();
+      console.log(`Search time: ${endTime - startTime}ms`);
+
+      // 处理搜索结果
+      const attachments = results.map(result => {
+        // 获取 targetType 对应的名称
+        console.log('result.targetType:', result.targetType);
+        console.log('aiChatConfig.targetTypes:', aiChatConfig.targetTypes);
+        const targetTypeName = aiChatConfig.targetTypes.find(t => t.id === result.targetType)?.name || 'Unknown Type';
+
+        const heroCard = CardFactory.heroCard(
+          result.name || result.title || 'No Title',
+          targetTypeName  // 添加 subtitle
+        );
+
+        const preview = CardFactory.heroCard(
+          result.name || result.title || 'No Title',
+          targetTypeName  // preview 也添加 subtitle
+        );
+        preview.content.tap = { type: 'invoke', value: result };
+
+        return { ...heroCard, preview };
+      });
+
+      return {
+        composeExtension: {
+          type: 'result',
+          attachmentLayout: 'list',
+          attachments: attachments
         }
-
-        console.log('Context search results:', results); // 添加日志
-
-        results.forEach(result => {
-          const heroCard = CardFactory.heroCard(
-            result.name || result.title || 'No Title'
-          );
-
-          // 预览卡片同样只显示名称，但包含完整数据供选择时使用
-          const preview = CardFactory.heroCard(
-            result.name || result.title || 'No Title'
-          );
-          preview.content.tap = { 
-            type: 'invoke', 
-            value: result
-          };
-
-          const attachment = { ...heroCard, preview };
-          attachments.push(attachment);
-        });
-
-        return {
-          composeExtension: {
-            type: 'result',
-            attachmentLayout: 'list',
-            attachments: attachments
-          }
-        };
-      } else if (query.commandId === 'keySearch') {
-        const startTime = Date.now();
-        console.log(`[KeySearch] Start time: ${startTime}`);
-        const results = await keySearch(searchQuery);
-        const endTime = Date.now();
-        console.log(`[KeySearch] End time: ${endTime}`);
-        const attachments = [];
-
-        if (!results || !Array.isArray(results)) {
-          console.log('Invalid results format:', results);
-          return null;
-        }
-
-        console.log('Key search results:', results); // 添加日志
-
-        results.forEach(result => {
-          // 使用相同的显示格式
-          const heroCard = CardFactory.heroCard(
-            result.name || result.title || 'No Title'
-          );
-
-          const preview = CardFactory.heroCard(
-            result.name || result.title || 'No Title'
-          );
-          preview.content.tap = { 
-            type: 'invoke', 
-            value: result
-          };
-
-          const attachment = { ...heroCard, preview };
-          attachments.push(attachment);
-        });
-
-        return {
-          composeExtension: {
-            type: 'result',
-            attachmentLayout: 'list',
-            attachments: attachments
-          }
-        };
-      }
+      };
     } catch (error) {
-      console.error('Search error:', error);
+      console.error('Search error:', error);  // 已有的错误日志
       throw error;
     }
   }
@@ -346,101 +312,50 @@ class TeamsBot extends TeamsActivityHandler {
   async handleTeamsMessagingExtensionSelectItem(context, obj) {
     console.log('Selected item data:', obj);
     try {
-      // 调用 queryContactList 获取联系人信息
-      const contactData = await queryContactList({
-        tagMappingMenuId: obj.tagMenuId,
-        domains: [],  // 可以为空
-        keywords: obj.relatedId
-      });
+      let data;
+      // 根据 targetType 调用不同的 API
+      switch (obj.targetType) {
+        case 1: // Account
+        data = await queryAccountList({
+          tagMappingMenuId: obj.tagMenuId,
+          keywords: obj.relatedId
+        });
+        return createAccountCard(data[0]);
 
-      // 获取第一个联系人信息
-      const contact = contactData?.[0];
-      console.log('Contact data:', contact);
-      
-      if (!contact) {
-        throw new Error('No contact information found');
+        case 2: // Contact
+          data = await queryContactList({
+            tagMappingMenuId: obj.tagMenuId,
+            keywords: obj.relatedId
+          });
+          return createContactCard(data[0]);
+          
+        case 3: // Fund
+          data = await queryFundList({
+            tagMappingMenuId: obj.tagMenuId,
+            keywords: obj.relatedId
+          });
+          return createFundCard(data[0]);
+          
+        case 4: // Activity
+          data = await queryActivityList({
+            tagMappingMenuId: obj.tagMenuId,
+            keywords: obj.relatedId
+          });
+          return createActivityCard(data[0]);
+          
+        case 5: // Document
+          data = await queryDocumentList({
+            tagMappingMenuId: obj.tagMenuId,
+            keywords: obj.relatedId
+          });
+          return createDocumentCard(data[0]);
+          
+        default:
+          throw new Error(`Unsupported target type: ${obj.targetType}`);
       }
-
-      // 构建联系人信息卡片
-      return {
-        composeExtension: {
-          type: 'result',
-          attachmentLayout: 'list',
-          attachments: [{
-            contentType: 'application/vnd.microsoft.card.adaptive',
-            content: {
-              type: 'AdaptiveCard',
-              version: '1.0',
-              body: [
-                {
-                  type: 'TextBlock',
-                  text: contact.fullName || 'Unknown Name',
-                  weight: 'bolder',
-                  size: 'medium'
-                },
-                {
-                  type: 'FactSet',
-                  facts: [
-                    {
-                      title: 'Email:',
-                      value: contact.email || 'N/A'
-                    },
-                    {
-                      title: 'Phone:',
-                      value: contact.phone || 'N/A'
-                    },
-                    {
-                      title: 'Mobile:',
-                      value: contact.mobile || 'N/A'
-                    },
-                    {
-                      title: 'Address:',
-                      value: contact.fullAddress || 'N/A'
-                    },
-                    {
-                      title: 'Company:',
-                      value: contact.relatedAccount?.name || 'N/A'
-                    }
-                  ]
-                },
-                {
-                  type: 'TextBlock',
-                  text: contact.overview || '',
-                  wrap: true
-                }
-              ],
-              actions: [
-                {
-                  type: 'Action.OpenUrl',
-                  title: 'Chat',
-                  url: 'https://newchat.arencore.me/?openExternal=true'
-                }
-              ]
-            }
-          }]
-        }
-      };
     } catch (error) {
       console.error('Error in handleTeamsMessagingExtensionSelectItem:', error);
-      // 返回错误信息卡片
-      return {
-        composeExtension: {
-          type: 'result',
-          attachmentLayout: 'list',
-          attachments: [{
-            contentType: 'application/vnd.microsoft.card.adaptive',
-            content: {
-              type: 'AdaptiveCard',
-              version: '1.0',
-              body: [{
-                type: 'TextBlock',
-                text: 'Failed to load contact information',
-                color: 'attention'
-              }]
-            }
-          }]
-        }
-      };
+      return createErrorCard('Failed to load details');
     }
   }
 }
