@@ -1,7 +1,8 @@
 const { TeamsActivityHandler, TurnContext, CardFactory, ActivityTypes } = require("botbuilder");
 const { ConversationState, MemoryStorage } = require('botbuilder');
-const { contextSearch, keySearch, queryContactList, queryAccountList, queryFundList, queryActivityList, queryDocumentList } = require('../api/search'); 
-const  aiChatConfig  = require('../store/aiChatConfig');
+const fetch = require('node-fetch');
+const { contextSearch, keySearch, queryContactList, queryAccountList, queryFundList, queryActivityList, queryDocumentList } = require('./api/search'); 
+const  aiChatConfig  = require('./store/aiChatConfig');
 const { 
   createContactCard,
   createAccountCard,
@@ -9,7 +10,7 @@ const {
   createActivityCard,
   createDocumentCard,
   createErrorCard,
-} = require('../ui/searchCard');
+} = require('./ui/searchCard');
 
 class TeamsBot extends TeamsActivityHandler {
   constructor() {
