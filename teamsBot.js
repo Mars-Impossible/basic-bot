@@ -10,6 +10,7 @@ const {
   createActivityCard,
   createDocumentCard,
   createErrorCard,
+  buildDetailUrl
 } = require('./ui/searchCard');
 
 class TeamsBot extends TeamsActivityHandler {
@@ -314,42 +315,43 @@ class TeamsBot extends TeamsActivityHandler {
     console.log('Selected item data:', obj);
     try {
       let data;
-      // 根据 targetType 调用不同的 API
+      const detailUrl = buildDetailUrl(obj);  
+      
       switch (obj.targetType) {
         case 1: // Account
         data = await queryAccountList({
           tagMappingMenuId: obj.tagMenuId,
           keywords: obj.relatedId
         });
-        return createAccountCard(data[0]);
+        return createAccountCard(data[0], detailUrl);
 
         case 2: // Contact
           data = await queryContactList({
             tagMappingMenuId: obj.tagMenuId,
             keywords: obj.relatedId
           });
-          return createContactCard(data[0]);
+          return createContactCard(data[0], detailUrl);
           
         case 3: // Fund
           data = await queryFundList({
             tagMappingMenuId: obj.tagMenuId,
             keywords: obj.relatedId
           });
-          return createFundCard(data[0]);
+          return createFundCard(data[0], detailUrl);
           
         case 4: // Activity
           data = await queryActivityList({
             tagMappingMenuId: obj.tagMenuId,
             keywords: obj.relatedId
           });
-          return createActivityCard(data[0]);
+          return createActivityCard(data[0], detailUrl);
           
         case 5: // Document
           data = await queryDocumentList({
             tagMappingMenuId: obj.tagMenuId,
             keywords: obj.relatedId
           });
-          return createDocumentCard(data[0]);
+          return createDocumentCard(data[0], detailUrl);
           
         default:
           throw new Error(`Unsupported target type: ${obj.targetType}`);

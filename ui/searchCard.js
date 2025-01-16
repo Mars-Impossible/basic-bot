@@ -1,4 +1,6 @@
-const createContactCard = (contact) => ({
+const aiChatConfig = require('../store/aiChatConfig');
+
+const createContactCard = (contact,detailUrl) => ({
   composeExtension: {
     type: 'result',
     attachmentLayout: 'list',
@@ -30,7 +32,7 @@ const createContactCard = (contact) => ({
           {
             type: 'Action.OpenUrl',
             title: 'View Details',
-            url: `https://newchat.arencore.me/`
+            url: detailUrl
           }
         ]
       }
@@ -38,7 +40,7 @@ const createContactCard = (contact) => ({
   }
 });
 
-const createAccountCard = (account) => ({
+const createAccountCard = (account,detailUrl) => ({
   composeExtension: {
     type: 'result',
     attachmentLayout: 'list',
@@ -69,7 +71,7 @@ const createAccountCard = (account) => ({
           {
             type: 'Action.OpenUrl',
             title: 'View Details',
-            url: `https://newchat.arencore.me/`
+            url: detailUrl
           }
         ]
       }
@@ -77,7 +79,7 @@ const createAccountCard = (account) => ({
   }
 });
 
-const createFundCard = (fund) => ({
+const createFundCard = (fund,detailUrl) => ({
   composeExtension: {
     type: 'result',
     attachmentLayout: 'list',
@@ -109,7 +111,7 @@ const createFundCard = (fund) => ({
           {
             type: 'Action.OpenUrl',
             title: 'View Details',
-            url: `https://newchat.arencore.me/`
+            url: detailUrl
           }
         ]
       }
@@ -117,7 +119,7 @@ const createFundCard = (fund) => ({
   }
 });
 
-const createActivityCard = (activity) => ({
+const createActivityCard = (activity,detailUrl) => ({
   composeExtension: {
     type: 'result',
     attachmentLayout: 'list',
@@ -148,7 +150,7 @@ const createActivityCard = (activity) => ({
           {
             type: 'Action.OpenUrl',
             title: 'View Details',
-            url: `https://newchat.arencore.me/`
+            url: detailUrl
           }
         ]
       }
@@ -156,7 +158,7 @@ const createActivityCard = (activity) => ({
   }
 });
 
-const createDocumentCard = (document) => ({
+const createDocumentCard = (document,detailUrl) => ({
   composeExtension: {
     type: 'result',
     attachmentLayout: 'list',
@@ -185,7 +187,7 @@ const createDocumentCard = (document) => ({
           {
             type: 'Action.OpenUrl',
             title: 'View Details',
-            url: `https://newchat.arencore.me/`
+            url: detailUrl
           }
         ]
       }
@@ -212,11 +214,28 @@ const createErrorCard = (message) => ({
   }
 });
 
+
+const buildDetailUrl = (obj) => {
+  const targetTypeObj = aiChatConfig.targetTypes.find(t => t.id === obj.targetType);
+  if (!targetTypeObj) return 'https://newchat.arencore.me/';
+
+  const baseModule = targetTypeObj.name.toLowerCase();
+  
+  let url = `https://newchat.arencore.me/${baseModule}?keywords=${encodeURIComponent(obj.relatedId)}`;
+  url += `&module=${encodeURIComponent(baseModule)}`;
+  
+  if (obj.targetType !== 1) {
+    url += `&tagMenuId=${encodeURIComponent(obj.tagMenuId)}`;
+  }
+  return url;
+}
+
 module.exports = {
   createContactCard,
   createAccountCard,
   createFundCard,
   createActivityCard,
   createDocumentCard,
-  createErrorCard
+  createErrorCard,
+  buildDetailUrl
 };
