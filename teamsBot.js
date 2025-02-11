@@ -23,6 +23,16 @@ class TeamsBot extends TeamsActivityHandler {
     this.historyAccessor = this.conversationState.createProperty('history');
 
     this.onMessage(async (context, next) => {
+      // 获取用户信息
+      const userInfo = {
+        id: context.activity.from.id,
+        name: context.activity.from.name,
+        aadObjectId: context.activity.from.aadObjectId, // Azure AD Object ID
+        userPrincipalName: context.activity.from.userPrincipalName // 如果可用
+      };
+      
+      console.log('User Info:', userInfo);
+
       // 获取当前对话的历史记录
       const history = await this.historyAccessor.get(context, []);
       
@@ -190,10 +200,12 @@ class TeamsBot extends TeamsActivityHandler {
         ]);
         await this.historyAccessor.set(context, []);
       } else {
-        // 添加新消息到历史记录
+        // 将用户信息添加到历史记录中
         history.push({
           role: 'user',
-          content: txt
+          content: txt,
+          userInfo: userInfo,
+          timestamp: new Date().toISOString()
         });
         
         // 保持最多3条记录
