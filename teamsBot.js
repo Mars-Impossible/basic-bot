@@ -1,5 +1,6 @@
 const { TeamsActivityHandler, TurnContext, CardFactory, ActivityTypes } = require("botbuilder");
 const { ConversationState, MemoryStorage } = require('botbuilder');
+const { chatWithSSE } = require('./api/chat');
 const fetch = require('node-fetch');
 const { contextSearch, keySearch, queryContactList, queryAccountList, queryFundList, queryActivityList, queryDocumentList } = require('./api/search'); 
 const  aiChatConfig  = require('./store/aiChatConfig');
@@ -31,10 +32,8 @@ class TeamsBot extends TeamsActivityHandler {
         userPrincipalName: context.activity.from.userPrincipalName // 如果可用
       };
       
-      console.log('User Info:', userInfo);
-
-      // 获取当前对话的历史记录
-      const history = await this.historyAccessor.get(context, []);
+      // 注释掉历史记录获取
+      // const history = await this.historyAccessor.get(context, []);
       
       const removedMentionText = TurnContext.removeRecipientMention(context.activity);
       const txt = removedMentionText.toLowerCase().replace(/\n|\r/g, "").trim();
@@ -193,65 +192,69 @@ class TeamsBot extends TeamsActivityHandler {
             feedbackLoopEnabled: true  // 启用反馈按钮
           }
         });
-      } else if (txt === "delete history") {
-        await context.sendActivities([
-          { type: 'typing' },
-          { type: 'message', text: 'History cleared!' }
-        ]);
-        await this.historyAccessor.set(context, []);
       } else {
-        // 将用户信息添加到历史记录中
-        history.push({
-          role: 'user',
-          content: txt,
-          userInfo: userInfo,
-          timestamp: new Date().toISOString()
-        });
+        // 注释掉历史记录更新
+        // history.push({
+        //   role: 'user',
+        //   content: txt,
+        //   userInfo: userInfo,
+        //   timestamp: new Date().toISOString()
+        // });
         
-        // 保持最多3条记录
-        if (history.length > 3) {
-          history.shift();
-        }
-        
-        // 保存更新后的历史记录
-        await this.historyAccessor.set(context, history);
+        // 注释掉历史记录长度控制
+        // if (history.length > 3) {
+        //   history.shift();
+        // }
+        // await this.historyAccessor.set(context, history);
 
-        try {
-          const response = await fetch('https://httpbin.org/post', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ 
-              message: txt,
-              history: history 
-            })
-          });
-          
-          const data = await response.json();
-          let historyMessage = 'History:\n';
-          history.forEach((msg, index) => {
-            historyMessage += `${index + 1}. ${msg.content}\n`;
-          });
-          
-          // 发送typing状态和消息
-          await context.sendActivities([
-            { type: 'typing' },
-            { type: 'message', text: historyMessage }
-          ]);
-          
-        } catch (error) {
-          console.error('Error:', error);
-          await context.sendActivities([
-            { type: 'typing' },
-            { type: 'message', text: 'Sorry, there was an error.' }
-          ]);
-        }
+        // 发送 typing 状态
+        await context.sendActivity({ type: 'typing' });
+
+        // 发送初始响应
+        const initialResponse = await context.sendActivity({
+          type: 'message',
+          text: 'Thinking...'
+        });
+
+        let responseText = '';
+
+        await chatWithSSE({
+          message: txt,
+          onUpdate: async (text) => {
+            try {
+              // 使用简单的 updateActivity，因为 SSE API 已经处理了消息顺序
+              await context.updateActivity({
+                id: initialResponse.id,
+                type: 'message',
+                text: text
+              });
+            } catch (error) {
+              console.error('Update error:', error);
+            }
+          },
+          onFinish: async (finalText) => {
+            try {
+              await context.updateActivity({
+                id: initialResponse.id,
+                type: 'message',
+                text: finalText
+              });
+            } catch (error) {
+              console.error('Final update error:', error);
+            }
+          },
+          onError: async (error) => {
+            console.error('Chat error:', error);
+            await context.updateActivity({
+              id: initialResponse.id,
+              type: 'message',
+              text: 'Sorry, there was an error processing your request.'
+            });
+          }
+        });
+
+        await next();
       }
-      
-      // 保存状态
-      await this.conversationState.saveChanges(context);
-      await next();
     });
 
     this.onMembersAdded(async (context, next) => {

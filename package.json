@@ -21,6 +21,7 @@
         "test": "echo \"Error: no test specified\" && exit 1"
     },
     "dependencies": {
+        "@fortaine/fetch-event-source": "^3.0.6",
         "@microsoft/teams-ai": "^1.7.2",
         "botbuilder": "^4.23.1",
         "express": "^5.0.1"
