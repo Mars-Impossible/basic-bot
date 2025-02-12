@@ -130,7 +130,28 @@ class TeamsBot extends TeamsActivityHandler {
           ]
         });
 
-        await context.sendActivity({ attachments: [card] });
+        await context.sendActivity({ 
+          attachments: [card],
+          suggestedActions: {
+            actions: [
+              {
+                type: 'imBack',
+                title: '👍 Helpful',
+                value: 'helpful'
+              },
+              {
+                type: 'imBack',
+                title: '👎 Not Helpful',
+                value: 'not helpful'
+              },
+              {
+                type: 'imBack',
+                title: '🔄 Show More Examples',
+                value: 'examples'
+              }
+            ]
+          }
+        });
       } else if (txt === "news") {
         const heroCard = CardFactory.heroCard(
           'Seattle Center Monorail',
@@ -222,7 +243,6 @@ class TeamsBot extends TeamsActivityHandler {
           message: txt,
           onUpdate: async (text) => {
             try {
-              // 使用简单的 updateActivity，因为 SSE API 已经处理了消息顺序
               await context.updateActivity({
                 id: initialResponse.id,
                 type: 'message',
@@ -237,7 +257,26 @@ class TeamsBot extends TeamsActivityHandler {
               await context.updateActivity({
                 id: initialResponse.id,
                 type: 'message',
-                text: finalText
+                text: finalText,
+                suggestedActions: {
+                  actions: [
+                    {
+                      type: 'imBack',
+                      title: '👍 Helpful',
+                      value: 'helpful'
+                    },
+                    {
+                      type: 'imBack',
+                      title: '👎 Not Helpful',
+                      value: 'not helpful'
+                    },
+                    {
+                      type: 'imBack',
+                      title: '🔄 Regenerate',
+                      value: 'regenerate'
+                    }
+                  ]
+                }
               });
             } catch (error) {
               console.error('Final update error:', error);
