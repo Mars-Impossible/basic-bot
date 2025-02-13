@@ -495,31 +495,39 @@ class TeamsBot extends TeamsActivityHandler {
         // 发送初始响应
         const initialResponse = await context.sendActivity({
           type: 'message',
-          text: 'Thinking...'
+          text: '...',
+          suggestedActions: this.commonSuggestedActions
         });
 
-        let responseText = '';
+        let lastUpdateTime = 0;  
+        const updateInterval = 200;  
 
         await chatWithSSE({
           message: txt,
           onUpdate: async (text) => {
             try {
-              await context.updateActivity(this.createActivityWithSuggestions({
-                id: initialResponse.id,
-                type: 'message',
-                text: text
-              }));
+              const now = Date.now();
+              if (now - lastUpdateTime >= updateInterval) {
+                await context.updateActivity({
+                  id: initialResponse.id,
+                  type: 'message',
+                  text: text
+                });
+                lastUpdateTime = now;
+              }
             } catch (error) {
               console.error('Update error:', error);
             }
           },
           onFinish: async (finalText) => {
             try {
-              await context.updateActivity(this.createActivityWithSuggestions({
+              console.log('[Teams] Finishing with final text length:', finalText.length);
+              
+              await context.updateActivity({
                 id: initialResponse.id,
                 type: 'message',
-                text: finalText
-              }));
+                text: finalText,
+              });
             } catch (error) {
               console.error('Final update error:', error);
             }

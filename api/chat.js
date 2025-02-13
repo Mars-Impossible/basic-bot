@@ -4,6 +4,19 @@ const { fetchEventSource } = require('@fortaine/fetch-event-source');
 // 直接设置 token
 const AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1laWRlbnRpZmllciI6IjkyMzY0Yjc1LWNhNjYtNDc4NC04MTlmLWU5ODRkM2ZjYThhYyIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWUiOiJqb2hubnkgd2FuZyIsIm5iZiI6MTczNjkzMjcxOCwiZXhwIjoxNzM3NTM3NTE4LCJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjUwMDAiLCJhdWQiOiJodHRwOi8vbG9jYWxob3N0OjUwMDAifQ.zowTdszEnKrZw3JeVb8QRwYuxRDathEDmrBGc-EdRSc";
 
+const throttle = (func, limit) => {
+    let inThrottle;
+    let lastResult;
+    return (...args) => {
+        if (!inThrottle) {
+            inThrottle = true;
+            lastResult = func(...args);
+            setTimeout(() => inThrottle = false, limit);
+        }
+        return lastResult;
+    }
+}
+
 async function chatWithSSE({ message, onUpdate, onFinish, onError }) {
     try {
         const requestData = {
@@ -14,6 +27,12 @@ async function chatWithSSE({ message, onUpdate, onFinish, onError }) {
 
         let responseText = '';
         let finished = false;
+
+        const throttledUpdate = throttle((text) => {
+            onUpdate?.(text);
+        },400); 
+
+        console.log('[SSE] Starting chat with message:', message);
 
         await fetchEventSource('https://marsai.arencore.me/api/Chats/SSEChat', {
             method: 'POST',
@@ -29,8 +48,10 @@ async function chatWithSSE({ message, onUpdate, onFinish, onError }) {
             
             onopen(res) {
                 if (!res.ok) {
+                    console.error('[SSE] Connection failed:', res.status);
                     throw new Error(`Failed to connect: ${res.status}`);
                 }
+                console.log('[SSE] Connection opened:', res.status);
             },
             
             onmessage(msg) {
@@ -38,22 +59,21 @@ async function chatWithSSE({ message, onUpdate, onFinish, onError }) {
                 
                 try {
                     const json = JSON.parse(msg.data);
-                    if (json.MessageType === 10) {
-                        finished = true;
-                        onFinish?.(responseText, json.Content);
-                        return;
-                    }
-                    if (json.MessageType === 1) {
+                    
+                    if (json.MessageType === 1 && json.Content) {
                         responseText += json.Content;
-                        onUpdate?.(responseText);
+                        throttledUpdate(responseText);
+                    } else if (json.MessageType === 10) {
+                        finished = true;
+                        onFinish?.(responseText);
                     }
                 } catch (error) {
-                    console.error('[SSE] Parse error:', error);
                     onError?.(error);
                 }
             },
             
             onclose() {
+                console.log('[SSE] Connection closed, finished:', finished);
                 if (!finished) {
                     finished = true;
                     onFinish?.(responseText);
@@ -61,7 +81,7 @@ async function chatWithSSE({ message, onUpdate, onFinish, onError }) {
             },
             
             onerror(err) {
-                console.error('[SSE] Error:', err);
+                console.error('[SSE] Connection error:', err);
                 onError?.(err);
             }
         });
