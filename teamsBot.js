@@ -232,10 +232,37 @@ class TeamsBot extends TeamsActivityHandler {
           style: "default",
           body: [
             {
-              type: "TextBlock",
-              text: "AI Search",
-              weight: "bolder",
-              size: "medium"
+              type: "ColumnSet",
+              columns: [
+                {
+                  type: "Column",
+                  width: "stretch",
+                  items: [
+                    {
+                      type: "TextBlock",
+                      text: "AI search",
+                      weight: "bolder",
+                      size: "medium"
+                    }
+                  ]
+                },
+                {
+                  type: "Column",
+                  width: "auto",
+                  items: [
+                    {
+                      type: "Input.Toggle",
+                      id: "searchMode",
+                      title: "AI Search",  
+                      valueOn: "true",
+                      valueOff: "false",
+                      value: "false", // 默认为 false，表示 Key 搜索
+                      wrap: false,
+                      style: "positive"
+                    }
+                  ]
+                }
+              ]
             },
             {
               type: "Input.Text",
@@ -356,6 +383,9 @@ class TeamsBot extends TeamsActivityHandler {
         }));
       } else if (context.activity.value && context.activity.value.action === "aiSearch") {
         const query = context.activity.value.searchQuery;
+        const isAISearch = context.activity.value.searchMode === "true"; // 修改变量名使其更清晰
+        
+        // 获取选中的类型
         const selectedTypes = [];
         for (let i = 1; i <= 5; i++) {
           if (context.activity.value[`type${i}`] === "true") {
@@ -395,8 +425,11 @@ class TeamsBot extends TeamsActivityHandler {
           const modulesFilterStr = selectedTypes
             .map(type => `TargetTypes=${type}`)
             .join('&');
-
-          const results = await contextSearch(query, modulesFilterStr);
+          
+          // 根据搜索模式选择不同的 API
+          const searchFunction = isAISearch ? contextSearch : keySearch; // 修改这里的逻辑
+          console.log(`Using ${isAISearch ? 'AI' : 'Key'} Search`);
+          const results = await searchFunction(query, modulesFilterStr);
           
           // 将结果按类型分组
           const groupedResults = results.reduce((acc, result) => {
@@ -415,7 +448,7 @@ class TeamsBot extends TeamsActivityHandler {
             body: [
               {
                 type: "TextBlock",
-                text: "Search Results",
+                text: `${isAISearch ? 'AI' : 'Key'} Search Results`, // 修改这里的显示逻辑
                 weight: "bolder",
                 size: "medium"
               }
