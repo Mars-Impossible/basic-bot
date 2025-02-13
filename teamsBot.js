@@ -226,10 +226,10 @@ class TeamsBot extends TeamsActivityHandler {
           }
         }));
       } else if (txt === "/search") {
-        // 初始搜索卡片
         const searchCard = CardFactory.adaptiveCard({
           type: "AdaptiveCard",
           version: "1.0",
+          style: "default",
           body: [
             {
               type: "TextBlock",
@@ -241,7 +241,105 @@ class TeamsBot extends TeamsActivityHandler {
               type: "Input.Text",
               id: "searchQuery",
               placeholder: "Enter your search query",
-              isRequired: true
+              isRequired: true,
+              errorMessage: "Please enter a search query"
+            },
+            {
+              type: "TextBlock",
+              text: "Select search types:",
+              wrap: true,
+              spacing: "medium"
+            },
+            {
+              type: "Container",
+              spacing: "medium",
+              items: [
+                {
+                  type: "ColumnSet",
+                  columns: [
+                    {
+                      type: "Column",
+                      width: "auto",
+                      spacing: "medium",
+                      items: [
+                        {
+                          type: "Input.Toggle",
+                          id: "type1",
+                          title: "Account",
+                          value: "true",
+                          wrap: false,
+                          spacing: "medium"
+                        }
+                      ]
+                    },
+                    {
+                      type: "Column",
+                      width: "auto",
+                      spacing: "medium",
+                      items: [
+                        {
+                          type: "Input.Toggle",
+                          id: "type2",
+                          title: "Contact",
+                          value: "true",
+                          wrap: false,
+                          spacing: "medium"
+                        }
+                      ]
+                    },
+                    {
+                      type: "Column",
+                      width: "auto",
+                      spacing: "medium",
+                      items: [
+                        {
+                          type: "Input.Toggle",
+                          id: "type3",
+                          title: "Fund",
+                          value: "true",
+                          wrap: false,
+                          spacing: "medium"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  type: "ColumnSet",
+                  columns: [
+                    {
+                      type: "Column",
+                      width: "auto",
+                      spacing: "medium",
+                      items: [
+                        {
+                          type: "Input.Toggle",
+                          id: "type4",
+                          title: "Activity",
+                          value: "true",
+                          wrap: false,
+                          spacing: "medium"
+                        }
+                      ]
+                    },
+                    {
+                      type: "Column",
+                      width: "auto",
+                      spacing: "medium",
+                      items: [
+                        {
+                          type: "Input.Toggle",
+                          id: "type5",
+                          title: "Document",
+                          value: "true",
+                          wrap: false,
+                          spacing: "medium"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
             }
           ],
           actions: [
@@ -257,16 +355,56 @@ class TeamsBot extends TeamsActivityHandler {
           attachments: [searchCard] 
         }));
       } else if (context.activity.value && context.activity.value.action === "aiSearch") {
-        // 处理搜索提交
         const query = context.activity.value.searchQuery;
+        const selectedTypes = [];
+        for (let i = 1; i <= 5; i++) {
+          if (context.activity.value[`type${i}`] === "true") {
+            selectedTypes.push(i.toString());
+          }
+        }
+
+        // 验证是否选择了至少一个类型
+        if (selectedTypes.length === 0) {
+          const errorCard = CardFactory.adaptiveCard({
+            type: "AdaptiveCard",
+            version: "1.0",
+            body: [
+              {
+                type: "TextBlock",
+                text: "Error",
+                weight: "bolder",
+                size: "medium",
+                color: "attention"
+              },
+              {
+                type: "TextBlock",
+                text: "Please select at least one type to search",
+                wrap: true
+              }
+            ]
+          });
+
+          await context.sendActivity(this.createActivityWithSuggestions({ 
+            attachments: [errorCard]
+          }));
+          return;
+        }
+        
         try {
-          const results = await contextSearch(query);
+          // 构建 modulesFilterStr
+          const modulesFilterStr = selectedTypes
+            .map(type => `TargetTypes=${type}`)
+            .join('&');
+
+          const results = await contextSearch(query, modulesFilterStr);
           
           // 将结果按类型分组
           const groupedResults = results.reduce((acc, result) => {
-            const type = result.targetType;
-            if (!acc[type]) acc[type] = [];
-            acc[type].push(result);
+            if (selectedTypes.includes(result.targetType.toString())) {
+              const type = result.targetType;
+              if (!acc[type]) acc[type] = [];
+              acc[type].push(result);
+            }
             return acc;
           }, {});
 
