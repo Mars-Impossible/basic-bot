@@ -23,6 +23,35 @@ class TeamsBot extends TeamsActivityHandler {
     this.conversationState = new ConversationState(this.storage);
     this.historyAccessor = this.conversationState.createProperty('history');
 
+    // 添加通用的 suggestedActions
+    this.commonSuggestedActions = {
+      actions: [
+        {
+          type: 'imBack',
+          title: '👍 Helpful',
+          value: 'helpful'
+        },
+        {
+          type: 'imBack',
+          title: '👎 Not Helpful',
+          value: 'not helpful'
+        },
+        {
+          type: 'imBack',
+          title: '🔄 Regenerate',
+          value: 'regenerate'
+        }
+      ]
+    };
+
+    // 创建一个帮助方法来添加 suggestedActions
+    this.createActivityWithSuggestions = (content) => {
+      return {
+        ...content,
+        suggestedActions: this.commonSuggestedActions
+      };
+    };
+
     this.onMessage(async (context, next) => {
       // 获取用户信息
       const userInfo = {
@@ -130,28 +159,9 @@ class TeamsBot extends TeamsActivityHandler {
           ]
         });
 
-        await context.sendActivity({ 
-          attachments: [card],
-          suggestedActions: {
-            actions: [
-              {
-                type: 'imBack',
-                title: '👍 Helpful',
-                value: 'helpful'
-              },
-              {
-                type: 'imBack',
-                title: '👎 Not Helpful',
-                value: 'not helpful'
-              },
-              {
-                type: 'imBack',
-                title: '🔄 Show More Examples',
-                value: 'examples'
-              }
-            ]
-          }
-        });
+        await context.sendActivity(this.createActivityWithSuggestions({ 
+          attachments: [card]
+        }));
       } else if (txt === "news") {
         const heroCard = CardFactory.heroCard(
           'Seattle Center Monorail',
@@ -174,9 +184,11 @@ class TeamsBot extends TeamsActivityHandler {
           }
         );
 
-        await context.sendActivity({ attachments: [heroCard] });
+        await context.sendActivity(this.createActivityWithSuggestions({ 
+          attachments: [heroCard] 
+        }));
       } else if (txt === "citation") {
-        await context.sendActivity({
+        await context.sendActivity(this.createActivityWithSuggestions({
           type: ActivityTypes.Message,
           text: "This is a message with citations [1][2]. You can click on the citation numbers to view more information.",
           entities: [{
@@ -212,7 +224,7 @@ class TeamsBot extends TeamsActivityHandler {
           channelData: {
             feedbackLoopEnabled: true  // 启用反馈按钮
           }
-        });
+        }));
       } else if (txt === "/search") {
         // 初始搜索卡片
         const searchCard = CardFactory.adaptiveCard({
@@ -241,7 +253,9 @@ class TeamsBot extends TeamsActivityHandler {
           ]
         });
 
-        await context.sendActivity({ attachments: [searchCard] });
+        await context.sendActivity(this.createActivityWithSuggestions({ 
+          attachments: [searchCard] 
+        }));
       } else if (context.activity.value && context.activity.value.action === "aiSearch") {
         // 处理搜索提交
         const query = context.activity.value.searchQuery;
@@ -282,9 +296,9 @@ class TeamsBot extends TeamsActivityHandler {
             }))
           });
 
-          await context.sendActivity({ 
+          await context.sendActivity(this.createActivityWithSuggestions({ 
             attachments: [resultCard]
-          });
+          }));
         } catch (error) {
           console.error('Search error:', error);
           await context.sendActivity('Sorry, there was an error processing your search.');
@@ -319,41 +333,22 @@ class TeamsBot extends TeamsActivityHandler {
           message: txt,
           onUpdate: async (text) => {
             try {
-              await context.updateActivity({
+              await context.updateActivity(this.createActivityWithSuggestions({
                 id: initialResponse.id,
                 type: 'message',
                 text: text
-              });
+              }));
             } catch (error) {
               console.error('Update error:', error);
             }
           },
           onFinish: async (finalText) => {
             try {
-              await context.updateActivity({
+              await context.updateActivity(this.createActivityWithSuggestions({
                 id: initialResponse.id,
                 type: 'message',
-                text: finalText,
-                suggestedActions: {
-                  actions: [
-                    {
-                      type: 'imBack',
-                      title: '👍 Helpful',
-                      value: 'helpful'
-                    },
-                    {
-                      type: 'imBack',
-                      title: '👎 Not Helpful',
-                      value: 'not helpful'
-                    },
-                    {
-                      type: 'imBack',
-                      title: '🔄 Regenerate',
-                      value: 'regenerate'
-                    }
-                  ]
-                }
-              });
+                text: finalText
+              }));
             } catch (error) {
               console.error('Final update error:', error);
             }
@@ -376,9 +371,9 @@ class TeamsBot extends TeamsActivityHandler {
       const membersAdded = context.activity.membersAdded;
       for (let cnt = 0; cnt < membersAdded.length; cnt++) {
         if (membersAdded[cnt].id) {
-          await context.sendActivity(
-            `Hi there! I'm an ai assistant for you. You can ask me anything.`
-          );
+          await context.sendActivity(this.createActivityWithSuggestions({
+            text: `Hi there! I'm an ai assistant for you. You can ask me anything.`
+          }));
           break;
         }
       }
