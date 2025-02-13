@@ -36,7 +36,7 @@ class TeamsBot extends TeamsActivityHandler {
       // const history = await this.historyAccessor.get(context, []);
       
       const removedMentionText = TurnContext.removeRecipientMention(context.activity);
-      const txt = removedMentionText.toLowerCase().replace(/\n|\r/g, "").trim();
+      const txt = removedMentionText ? removedMentionText.toLowerCase().replace(/\n|\r/g, "").trim() : "";
 
       if (txt === "learn") {
         const card = CardFactory.adaptiveCard({
@@ -213,6 +213,82 @@ class TeamsBot extends TeamsActivityHandler {
             feedbackLoopEnabled: true  // 启用反馈按钮
           }
         });
+      } else if (txt === "/search") {
+        // 初始搜索卡片
+        const searchCard = CardFactory.adaptiveCard({
+          type: "AdaptiveCard",
+          version: "1.0",
+          body: [
+            {
+              type: "TextBlock",
+              text: "AI Search",
+              weight: "bolder",
+              size: "medium"
+            },
+            {
+              type: "Input.Text",
+              id: "searchQuery",
+              placeholder: "Enter your search query",
+              isRequired: true
+            }
+          ],
+          actions: [
+            {
+              type: "Action.Submit",
+              title: "Search",
+              data: { action: "aiSearch" }
+            }
+          ]
+        });
+
+        await context.sendActivity({ attachments: [searchCard] });
+      } else if (context.activity.value && context.activity.value.action === "aiSearch") {
+        // 处理搜索提交
+        const query = context.activity.value.searchQuery;
+        try {
+          const results = await contextSearch(query);
+          
+          // 将结果按类型分组
+          const groupedResults = results.reduce((acc, result) => {
+            const type = result.targetType;
+            if (!acc[type]) acc[type] = [];
+            acc[type].push(result);
+            return acc;
+          }, {});
+
+          // 创建结果卡片
+          const resultCard = CardFactory.adaptiveCard({
+            type: "AdaptiveCard",
+            version: "1.0",
+            body: [
+              {
+                type: "TextBlock",
+                text: "Search Results",
+                weight: "bolder",
+                size: "medium"
+              }
+            ],
+            actions: Object.entries(groupedResults).map(([type, items]) => ({
+              type: "Action.ShowCard",
+              title: `${aiChatConfig.targetTypes.find(t => t.id === parseInt(type))?.name || 'Unknown'} (${items.length})`,
+              card: {
+                type: "AdaptiveCard",
+                body: items.map(item => ({
+                  type: "TextBlock",
+                  text: item.name || item.title,
+                  wrap: true
+                }))
+              }
+            }))
+          });
+
+          await context.sendActivity({ 
+            attachments: [resultCard]
+          });
+        } catch (error) {
+          console.error('Search error:', error);
+          await context.sendActivity('Sorry, there was an error processing your search.');
+        }
       } else {
         // 注释掉历史记录更新
         // history.push({
@@ -301,7 +377,7 @@ class TeamsBot extends TeamsActivityHandler {
       for (let cnt = 0; cnt < membersAdded.length; cnt++) {
         if (membersAdded[cnt].id) {
           await context.sendActivity(
-            `Hi there! I'm a Teams bot that will echo what you said to me.`
+            `Hi there! I'm an ai assistant for you. You can ask me anything.`
           );
           break;
         }
