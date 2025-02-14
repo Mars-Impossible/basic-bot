@@ -12,7 +12,8 @@ const {
   createDocumentCard,
   createErrorCard,
   buildDetailUrl
-} = require('./ui/searchCard');
+} = require('./ui/searchResultCard');
+const { createSearchCard } = require('./ui/searchQueryCard');
 
 class TeamsBot extends TeamsActivityHandler {
   constructor() {
@@ -60,9 +61,6 @@ class TeamsBot extends TeamsActivityHandler {
         aadObjectId: context.activity.from.aadObjectId, // Azure AD Object ID
         userPrincipalName: context.activity.from.userPrincipalName // 如果可用
       };
-      
-      // 注释掉历史记录获取
-      // const history = await this.historyAccessor.get(context, []);
       
       const removedMentionText = TurnContext.removeRecipientMention(context.activity);
       const txt = removedMentionText ? removedMentionText.toLowerCase().replace(/\n|\r/g, "").trim() : "";
@@ -128,34 +126,7 @@ class TeamsBot extends TeamsActivityHandler {
               type: "Action.OpenUrl",
               title: "Adaptive Card Docs",
               url: "https://learn.microsoft.com/en-us/adaptive-cards/"
-            },
-          //   {
-          //     // Teams特有的执行动作
-          //     type: "Action.Execute",
-          //     title: "Echo History",
-          //     verb: "processData",  // 后端处理时的标识符
-          //     data: {
-          //         operationType: "analyze",
-          //         parameters: {
-          //             source: "userAction"
-          //         }
-          //     }
-          // },
-          // {
-          //     // 打开任务模块
-          //     type: "Action.Submit",
-          //     title: "Open Task Module",
-          //     data: {
-          //         msteams: {
-          //             type: "task/fetch",
-          //             taskModule: {
-          //                 title: "Task Module",
-          //                 height: "medium",
-          //                 width: "medium"
-          //             }
-          //         }
-          //     }
-          // }
+            }
           ]
         });
 
@@ -226,172 +197,14 @@ class TeamsBot extends TeamsActivityHandler {
           }
         }));
       } else if (txt === "/search") {
-        const searchCard = CardFactory.adaptiveCard({
-          type: "AdaptiveCard",
-          version: "1.0",
-          style: "default",
-          body: [
-            {
-              type: "ColumnSet",
-              columns: [
-                {
-                  type: "Column",
-                  width: "stretch",
-                  items: [
-                    {
-                      type: "TextBlock",
-                      text: "AI search",
-                      weight: "bolder",
-                      size: "medium"
-                    }
-                  ]
-                },
-                {
-                  type: "Column",
-                  width: "auto",
-                  items: [
-                    {
-                      type: "Input.Toggle",
-                      id: "searchMode",
-                      title: "AI Search",  
-                      valueOn: "true",
-                      valueOff: "false",
-                      value: "false", // 默认为 false，表示 Key 搜索
-                      wrap: false,
-                      style: "positive"
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              type: "Input.Text",
-              id: "searchQuery",
-              placeholder: "Enter your search query",
-              isRequired: true,
-              errorMessage: "Please enter a search query"
-            },
-            {
-              type: "TextBlock",
-              text: "Select search types:",
-              wrap: true,
-              spacing: "medium"
-            },
-            {
-              type: "Container",
-              spacing: "medium",
-              items: [
-                {
-                  type: "ColumnSet",
-                  columns: [
-                    {
-                      type: "Column",
-                      width: "auto",
-                      spacing: "medium",
-                      items: [
-                        {
-                          type: "Input.Toggle",
-                          id: "type1",
-                          title: "Account",
-                          value: "true",
-                          wrap: false,
-                          spacing: "medium"
-                        }
-                      ]
-                    },
-                    {
-                      type: "Column",
-                      width: "auto",
-                      spacing: "medium",
-                      items: [
-                        {
-                          type: "Input.Toggle",
-                          id: "type2",
-                          title: "Contact",
-                          value: "true",
-                          wrap: false,
-                          spacing: "medium"
-                        }
-                      ]
-                    },
-                    {
-                      type: "Column",
-                      width: "auto",
-                      spacing: "medium",
-                      items: [
-                        {
-                          type: "Input.Toggle",
-                          id: "type3",
-                          title: "Fund",
-                          value: "true",
-                          wrap: false,
-                          spacing: "medium"
-                        }
-                      ]
-                    }
-                  ]
-                },
-                {
-                  type: "ColumnSet",
-                  columns: [
-                    {
-                      type: "Column",
-                      width: "auto",
-                      spacing: "medium",
-                      items: [
-                        {
-                          type: "Input.Toggle",
-                          id: "type4",
-                          title: "Activity",
-                          value: "true",
-                          wrap: false,
-                          spacing: "medium"
-                        }
-                      ]
-                    },
-                    {
-                      type: "Column",
-                      width: "auto",
-                      spacing: "medium",
-                      items: [
-                        {
-                          type: "Input.Toggle",
-                          id: "type5",
-                          title: "Document",
-                          value: "true",
-                          wrap: false,
-                          spacing: "medium"
-                        }
-                      ]
-                    }
-                  ]
-                }
-              ]
-            }
-          ],
-          actions: [
-            {
-              type: "Action.Submit",
-              title: "Search",
-              data: { action: "aiSearch" }
-            }
-          ]
-        });
-
+        const searchCard = createSearchCard();
         await context.sendActivity(this.createActivityWithSuggestions({ 
           attachments: [searchCard] 
         }));
       } else if (context.activity.value && context.activity.value.action === "aiSearch") {
         const query = context.activity.value.searchQuery;
-        const isAISearch = context.activity.value.searchMode === "true"; // 修改变量名使其更清晰
-        
-        // 获取选中的类型
-        const selectedTypes = [];
-        for (let i = 1; i <= 5; i++) {
-          if (context.activity.value[`type${i}`] === "true") {
-            selectedTypes.push(i.toString());
-          }
-        }
+        const isAISearch = context.activity.value.searchMode === "true";
+        const selectedTypes = context.activity.value.searchTypes ? context.activity.value.searchTypes.split(',') : [];
 
         // 验证是否选择了至少一个类型
         if (selectedTypes.length === 0) {
@@ -413,81 +226,95 @@ class TeamsBot extends TeamsActivityHandler {
               }
             ]
           });
-
-          await context.sendActivity(this.createActivityWithSuggestions({ 
-            attachments: [errorCard]
-          }));
+          await context.sendActivity({ attachments: [errorCard] });
           return;
         }
         
         try {
-          // 构建 modulesFilterStr
           const modulesFilterStr = selectedTypes
             .map(type => `TargetTypes=${type}`)
             .join('&');
           
-          // 根据搜索模式选择不同的 API
-          const searchFunction = isAISearch ? contextSearch : keySearch; // 修改这里的逻辑
-          console.log(`Using ${isAISearch ? 'AI' : 'Key'} Search`);
+          const searchFunction = isAISearch ? contextSearch : keySearch;
           const results = await searchFunction(query, modulesFilterStr);
           
-          // 将结果按类型分组
+          // 添加调试日志
+          console.log('Search results:', results);
+          
+          // 修改结果分组，使用正确的字段名
           const groupedResults = results.reduce((acc, result) => {
             if (selectedTypes.includes(result.targetType.toString())) {
               const type = result.targetType;
               if (!acc[type]) acc[type] = [];
-              acc[type].push(result);
+              acc[type].push({
+                id: result.relatedId,  // 使用 relatedId 而不是 id
+                name: result.name || result.title,
+                title: result.title,
+                targetType: result.targetType,
+                tagMappingMenuId: result.tagMappingMenuId  // 确保使用正确的字段名
+              });
             }
             return acc;
           }, {});
 
-          // 创建结果卡片
-          const resultCard = CardFactory.adaptiveCard({
-            type: "AdaptiveCard",
-            version: "1.0",
-            body: [
-              {
-                type: "TextBlock",
-                text: `${isAISearch ? 'AI' : 'Key'} Search Results`, // 修改这里的显示逻辑
-                weight: "bolder",
-                size: "medium"
-              }
-            ],
-            actions: Object.entries(groupedResults).map(([type, items]) => ({
+          // 添加调试日志
+          console.log('Grouped results:', groupedResults);
+          
+          const updatedCard = createSearchCard(query, isAISearch, selectedTypes.join(','));
+          
+          updatedCard.content.actions = Object.entries(groupedResults).map(([type, items]) => {
+            console.log(`Processing type ${type} items:`, items); // 调试日志
+            return {
               type: "Action.ShowCard",
               title: `${aiChatConfig.targetTypes.find(t => t.id === parseInt(type))?.name || 'Unknown'} (${items.length})`,
               card: {
                 type: "AdaptiveCard",
-                body: items.map(item => ({
-                  type: "TextBlock",
-                  text: item.name || item.title,
-                  wrap: true
-                }))
+                body: items.map(item => {
+                  const detailUrl = buildDetailUrl({
+                    targetType: parseInt(type),
+                    relatedId: item.id,  // 这里使用的是上面保存的 relatedId
+                    tagMenuId: item.tagMappingMenuId
+                  });
+                  
+                  // 添加调试日志
+                  console.log('Building URL for item:', {
+                    type,
+                    relatedId: item.id,
+                    tagMenuId: item.tagMappingMenuId,
+                    url: detailUrl
+                  });
+
+                  return {
+                    type: "Container",
+                    selectAction: {
+                      type: "Action.OpenUrl",
+                      url: detailUrl
+                    },
+                    items: [
+                      {
+                        type: "TextBlock",
+                        text: item.name || item.title,
+                        wrap: true,
+                        color: "accent"
+                      }
+                    ]
+                  };
+                })
               }
-            }))
+            };
           });
 
-          await context.sendActivity(this.createActivityWithSuggestions({ 
-            attachments: [resultCard]
-          }));
+          await context.updateActivity({
+            type: 'message',
+            id: context.activity.replyToId,
+            attachments: [updatedCard]
+          });
+
         } catch (error) {
           console.error('Search error:', error);
           await context.sendActivity('Sorry, there was an error processing your search.');
         }
       } else {
-        // 注释掉历史记录更新
-        // history.push({
-        //   role: 'user',
-        //   content: txt,
-        //   userInfo: userInfo,
-        //   timestamp: new Date().toISOString()
-        // });
-        
-        // 注释掉历史记录长度控制
-        // if (history.length > 3) {
-        //   history.shift();
-        // }
-        // await this.historyAccessor.set(context, history);
 
         // 发送 typing 状态
         await context.sendActivity({ type: 'typing' });
