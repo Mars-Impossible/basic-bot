@@ -54,6 +54,18 @@ class TeamsBot extends TeamsActivityHandler {
     };
 
     this.onMessage(async (context, next) => {
+      // 获取会话相关的唯一标识符
+      const conversationId = context.activity.conversation.id;  // 完整的会话ID
+      const conversationProperties = {
+        conversationId: context.activity.conversation.id,       // 会话ID
+        channelId: context.activity.channelId,                 // 通道ID (例如: 'msteams')
+        tenantId: context.activity.conversation.tenantId,      // Teams 租户ID
+        userId: context.activity.from.id,                      // 用户ID
+        aadObjectId: context.activity.from.aadObjectId,        // Azure AD 对象ID
+      };
+
+      console.log('Conversation Properties:', conversationProperties);
+      
       // 获取用户信息
       const userInfo = {
         id: context.activity.from.id,
@@ -238,68 +250,124 @@ class TeamsBot extends TeamsActivityHandler {
           const searchFunction = isAISearch ? contextSearch : keySearch;
           const results = await searchFunction(query, modulesFilterStr);
           
-          // 添加调试日志
-          console.log('Search results:', results);
           
           // 修改结果分组，使用正确的字段名
           const groupedResults = results.reduce((acc, result) => {
             if (selectedTypes.includes(result.targetType.toString())) {
               const type = result.targetType;
               if (!acc[type]) acc[type] = [];
-              acc[type].push({
-                id: result.relatedId,  // 使用 relatedId 而不是 id
-                name: result.name || result.title,
-                title: result.title,
-                targetType: result.targetType,
-                tagMappingMenuId: result.tagMappingMenuId  // 确保使用正确的字段名
-              });
+              const maxResults = context.activity.value.maxResultCount || 5; // 从 Input.Number 获取值
+
+              if (acc[type].length < maxResults) {  // 使用动态的限制数量
+                // 清理文本格式的函数
+                const cleanFormatting = (text) => {
+                  return text
+                    .replace(/[""]/g, '') // 移除双引号
+                    .replace(/\*\*/g, '') // 移除markdown加粗
+                    .replace(/\[|\]/g, '') // 移除方括号
+                    .replace(/\(.*?\)/g, '') // 移除括号及其内容
+                    .trim();
+                };
+
+                const text = cleanFormatting(result.text || '');
+                let truncatedText = '';
+                
+                if (text.length > 100) {
+                  // 将文本分割成单词
+                  const words = text.split(' ');
+                  let currentLength = 0;
+                  
+                  // 逐个添加单词，直到接近但不超过100个字符
+                  for (const word of words) {
+                    if (currentLength + word.length + 1 <= 97) { // 97 留出空间给 "..."
+                      truncatedText += (truncatedText ? ' ' : '') + word;
+                      currentLength += word.length + (truncatedText ? 1 : 0);
+                    } else {
+                      break;
+                    }
+                  }
+                  truncatedText += ' ...';
+                } else {
+                  truncatedText = text;
+                }
+                
+                const truncateName = (text) => {
+                  if (!text) return '';
+                  
+                  // 清理特殊格式
+                  let cleanText = text
+                    .replace(/[""]/g, '') // 移除双引号
+                    .replace(/\*\*/g, '') // 移除markdown加粗
+                    .replace(/\[|\]/g, '') // 移除方括号
+                    .replace(/\(.*?\)/g, '') // 移除括号及其内容
+                    .trim();
+                  
+                  if (cleanText.length <= 60) return cleanText;
+                  
+                  const words = cleanText.split(' ');
+                  let truncatedName = '';
+                  let currentLength = 0;
+                  
+                  for (const word of words) {
+                    if (currentLength + word.length + 1 <= 57) { // 57 留出空间给 "..."
+                      truncatedName += (truncatedName ? ' ' : '') + word;
+                      currentLength += word.length + (truncatedName ? 1 : 0);
+                    } else {
+                      break;
+                    }
+                  }
+                  return truncatedName + ' ...';
+                };
+
+                acc[type].push({
+                  id: result.relatedId,
+                  name: truncateName(result.name || result.title),
+                  title: result.title,
+                  percentage: result.percentage || 0,
+                  text: truncatedText,
+                  targetType: result.targetType,
+                  tagMappingMenuId: result.tagMappingMenuId
+                });
+              }
             }
             return acc;
           }, {});
 
-          // 添加调试日志
-          console.log('Grouped results:', groupedResults);
           
           const updatedCard = createSearchCard(query, isAISearch, selectedTypes.join(','));
           
           updatedCard.content.actions = Object.entries(groupedResults).map(([type, items]) => {
-            console.log(`Processing type ${type} items:`, items); // 调试日志
             return {
               type: "Action.ShowCard",
               title: `${aiChatConfig.targetTypes.find(t => t.id === parseInt(type))?.name || 'Unknown'} (${items.length})`,
+              style: "default",
               card: {
                 type: "AdaptiveCard",
-                body: items.map(item => {
-                  const detailUrl = buildDetailUrl({
-                    targetType: parseInt(type),
-                    relatedId: item.id,  // 这里使用的是上面保存的 relatedId
-                    tagMenuId: item.tagMappingMenuId
-                  });
-                  
-                  // 添加调试日志
-                  console.log('Building URL for item:', {
-                    type,
-                    relatedId: item.id,
-                    tagMenuId: item.tagMappingMenuId,
-                    url: detailUrl
-                  });
-
-                  return {
-                    type: "Container",
-                    selectAction: {
-                      type: "Action.OpenUrl",
-                      url: detailUrl
-                    },
-                    items: [
-                      {
-                        type: "TextBlock",
-                        text: item.name || item.title,
-                        wrap: true,
-                        color: "accent"
-                      }
-                    ]
-                  };
-                })
+                body: [
+                  {
+                    type: "TextBlock",
+                    text: "Search Results",
+                    weight: "bolder",
+                    size: "medium",
+                    spacing: "medium"
+                  },
+                  {
+                    type: "ActionSet",
+                    actions: items.map(item => {
+                      const detailUrl = buildDetailUrl({
+                        targetType: parseInt(type),
+                        relatedId: item.id,  // 这里使用的是上面保存的 relatedId
+                        tagMenuId: item.tagMappingMenuId
+                      });
+                      return {
+                        type: "Action.OpenUrl",
+                        title: `${Math.round((item.percentage || 0) * 100).toString().padStart(2, ' ')}% | ${item.name || item.title}`,
+                        url: detailUrl,
+                        tooltip: `${item.text}\n${'─'.repeat(40)}`
+                      };
+                    })
+                  }
+                ]
               }
             };
           });
@@ -385,6 +453,43 @@ class TeamsBot extends TeamsActivityHandler {
       }
       await next();
     });
+
+    // 监听对话更新事件
+    // this.onConversationUpdate(async (context, next) => {
+    //   // 检查是否是对话删除事件
+    //   if (context.activity.channelData?.eventType === 'teamChatDeleted') {
+    //     const conversationId = context.activity.conversation.id;
+        
+    //     console.log('Chat deletion detected:', {
+    //       conversationId: conversationId,
+    //       userId: context.activity.from.id,
+    //       aadObjectId: context.activity.from.aadObjectId,
+    //       timestamp: new Date().toISOString()
+    //     });
+
+    //     try {
+    //       // 1. 从数据库中获取映射关系
+    //       const mapping = await this.getConversationMapping(conversationId);
+          
+    //       if (mapping) {
+    //         // 2. 删除公司系统中的聊天记录
+    //         await this.deleteCompanySystemChat(mapping.companySessionId);
+            
+    //         // 3. 删除或标记映射关系为已删除
+    //         await this.deleteConversationMapping(conversationId);
+            
+    //         console.log('Successfully deleted associated data:', {
+    //           teamsConversationId: conversationId,
+    //           companySessionId: mapping.companySessionId
+    //         });
+    //       }
+    //     } catch (error) {
+    //       console.error('Error handling conversation deletion:', error);
+    //     }
+    //   }
+      
+    //   await next();
+    // });
   }
 
   // 处理搜索查询
@@ -398,12 +503,9 @@ class TeamsBot extends TeamsActivityHandler {
     try {
       // 根据命令ID选择搜索方法
       const searchMethod = query.commandId === 'aiSearch' ? contextSearch : keySearch;
-      console.log('Search method:', query.commandId);
       const startTime = Date.now();
-      console.log(`Start time: ${startTime}`);
 
       const results = await searchMethod(searchQuery);
-      console.log('Search results:', results);  
       const endTime = Date.now();
       console.log(`Search time: ${endTime - startTime}ms`);
 

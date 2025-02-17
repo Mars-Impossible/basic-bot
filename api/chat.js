@@ -2,7 +2,7 @@ const request = require('./request');
 const { fetchEventSource } = require('@fortaine/fetch-event-source');
 
 // 直接设置 token
-const AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1laWRlbnRpZmllciI6IjkyMzY0Yjc1LWNhNjYtNDc4NC04MTlmLWU5ODRkM2ZjYThhYyIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWUiOiJqb2hubnkgd2FuZyIsIm5iZiI6MTczNjkzMjcxOCwiZXhwIjoxNzM3NTM3NTE4LCJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjUwMDAiLCJhdWQiOiJodHRwOi8vbG9jYWxob3N0OjUwMDAifQ.zowTdszEnKrZw3JeVb8QRwYuxRDathEDmrBGc-EdRSc";
+const AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1laWRlbnRpZmllciI6IjVmODAxN2ZhLTViNDYtNGY1Ny1hMzFjLTA1NjkxMTg1NzE2YiIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWUiOiJ4aWFvaGUiLCJuYmYiOjE3MzkxODQ5NzYsImV4cCI6MTczOTc4OTc3NiwiaXNzIjoiaHR0cDovL2xvY2FsaG9zdDo1MDAwIiwiYXVkIjoiaHR0cDovL2xvY2FsaG9zdDo1MDAwIn0.V5c3CtSufbBBnc0ht8RLNEzgYx6Psm3mzWwvFRdGnH0";
 
 const throttle = (func, limit) => {
     let inThrottle;
@@ -20,7 +20,7 @@ const throttle = (func, limit) => {
 async function chatWithSSE({ message, onUpdate, onFinish, onError }) {
     try {
         const requestData = {
-            chatSessionId: '8971d9ad-e81e-4ca9-9e16-ae0dfce2e444',
+            chatSessionId: '6c9438cf-9bea-404d-b29e-60fedc199097',
             message: message,
             ImageUrls: []
         };
