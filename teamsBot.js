@@ -1,6 +1,6 @@
 const { TeamsActivityHandler, TurnContext, CardFactory, ActivityTypes } = require("botbuilder");
 const { ConversationState, MemoryStorage } = require('botbuilder');
-const { chatWithSSE } = require('./api/chat');
+const { chatWithSSE, deleteHistory } = require('./api/chat');
 const fetch = require('node-fetch');
 const { contextSearch, keySearch, queryContactList, queryAccountList, queryFundList, queryActivityList, queryDocumentList } = require('./api/search'); 
 const  aiChatConfig  = require('./store/aiChatConfig');
@@ -14,6 +14,8 @@ const {
   buildDetailUrl
 } = require('./ui/searchResultCard');
 const { createSearchCard } = require('./ui/searchQueryCard');
+const NodeCache = require('node-cache');
+const axios = require('axios');
 
 class TeamsBot extends TeamsActivityHandler {
   constructor() {
@@ -53,6 +55,12 @@ class TeamsBot extends TeamsActivityHandler {
       };
     };
 
+    // 添加内存缓存
+    this.mappingCache = new NodeCache({ 
+      stdTTL: 3600, // 1小时过期
+      checkperiod: 600 // 每10分钟检查过期
+    });
+
     this.onMessage(async (context, next) => {
       // 获取会话相关的唯一标识符
       const conversationId = context.activity.conversation.id;  // 完整的会话ID
@@ -76,6 +84,23 @@ class TeamsBot extends TeamsActivityHandler {
       
       const removedMentionText = TurnContext.removeRecipientMention(context.activity);
       const txt = removedMentionText ? removedMentionText.toLowerCase().replace(/\n|\r/g, "").trim() : "";
+
+      // 添加删除历史记录的命令处理
+      if (txt === "/delete history") {
+        try {
+          const result = await deleteHistory(context.activity.from.id);  // 使用 userId
+          
+          if (result.success) {
+            await context.sendActivity("Chat history has been cleared. You can start a new conversation.");
+          } else {
+            await context.sendActivity(result.error.message || "No chat history found.");
+          }
+        } catch (error) {
+          console.error('Error deleting chat history:', error);
+          await context.sendActivity("Failed to clear chat history. Please try again.");
+        }
+        return;
+      }
 
       if (txt === "learn") {
         const card = CardFactory.adaptiveCard({
@@ -397,6 +422,15 @@ class TeamsBot extends TeamsActivityHandler {
         let lastUpdateTime = 0;  
         const updateInterval = 200;  
 
+        // 创建 conversationContext 对象
+        const conversationContext = {
+            userId: context.activity.from.id,        // Teams 用户 ID
+            userName: context.activity.from.name,    // 用户名
+            aadObjectId: context.activity.from.aadObjectId,  // Azure AD 对象 ID
+            conversationId: context.activity.conversation.id, // Teams 会话 ID
+            activity: context.activity  // 整个 activity 对象，以防后续需要其他信息
+        };
+
         await chatWithSSE({
           message: txt,
           onUpdate: async (text) => {
@@ -434,7 +468,8 @@ class TeamsBot extends TeamsActivityHandler {
               type: 'message',
               text: 'Sorry, there was an error processing your request.'
             });
-          }
+          },
+          conversationContext  // 传入 conversationContext
         });
 
         await next();
@@ -453,43 +488,6 @@ class TeamsBot extends TeamsActivityHandler {
       }
       await next();
     });
-
-    // 监听对话更新事件
-    // this.onConversationUpdate(async (context, next) => {
-    //   // 检查是否是对话删除事件
-    //   if (context.activity.channelData?.eventType === 'teamChatDeleted') {
-    //     const conversationId = context.activity.conversation.id;
-        
-    //     console.log('Chat deletion detected:', {
-    //       conversationId: conversationId,
-    //       userId: context.activity.from.id,
-    //       aadObjectId: context.activity.from.aadObjectId,
-    //       timestamp: new Date().toISOString()
-    //     });
-
-    //     try {
-    //       // 1. 从数据库中获取映射关系
-    //       const mapping = await this.getConversationMapping(conversationId);
-          
-    //       if (mapping) {
-    //         // 2. 删除公司系统中的聊天记录
-    //         await this.deleteCompanySystemChat(mapping.companySessionId);
-            
-    //         // 3. 删除或标记映射关系为已删除
-    //         await this.deleteConversationMapping(conversationId);
-            
-    //         console.log('Successfully deleted associated data:', {
-    //           teamsConversationId: conversationId,
-    //           companySessionId: mapping.companySessionId
-    //         });
-    //       }
-    //     } catch (error) {
-    //       console.error('Error handling conversation deletion:', error);
-    //     }
-    //   }
-      
-    //   await next();
-    // });
   }
 
   // 处理搜索查询
@@ -592,6 +590,45 @@ class TeamsBot extends TeamsActivityHandler {
     } catch (error) {
       console.error('Error in handleTeamsMessagingExtensionSelectItem:', error);
       return createErrorCard('Failed to load details');
+    }
+  }
+
+  async getConversationMapping(conversationId) {
+    // 先从缓存获取
+    let mapping = this.mappingCache.get(conversationId);
+    
+    if (!mapping) {
+      // 缓存未命中，从数据库获取
+      mapping = await this.getConversationMappingFromDB(conversationId);
+      
+      if (mapping) {
+        // 写入缓存
+        this.mappingCache.set(conversationId, mapping);
+      }
+    }
+    
+    return mapping;
+  }
+
+  async deleteCompanySystemChat(companySessionId) {
+    const maxRetries = 3;
+    let retryCount = 0;
+
+    while (retryCount < maxRetries) {
+      try {
+        await this.deleteChat(companySessionId);
+        return;
+      } catch (error) {
+        retryCount++;
+        console.error(`Failed to delete chat (attempt ${retryCount}):`, error);
+        
+        if (retryCount === maxRetries) {
+          throw new Error('Failed to delete chat after maximum retries');
+        }
+        
+        // 等待一段时间后重试
+        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+      }
     }
   }
 }

@@ -2,6 +2,7 @@
 
 // Import required packages
 const express = require("express");
+const mockTeamsApi = require("./mockTeamsApi");
 
 // Import required bot services.
 // See https://aka.ms/bot-services to learn more about the different parts of a bot.
@@ -46,8 +47,21 @@ const bot = new TeamsBot();
 const expressApp = express();
 expressApp.use(express.json());
 
+// 使用 mock API 路由
+expressApp.use(mockTeamsApi);
+
+// 添加一个简单的健康检查端点
+expressApp.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 const server = expressApp.listen(process.env.port || process.env.PORT || 3978, () => {
   console.log(`\nBot Started, ${expressApp.name} listening to`, server.address());
+  console.log('Mock API endpoints available at:');
+  console.log('- GET    /api/teams/mapping');
+  console.log('- POST   /api/teams/session');
+  console.log('- DELETE /api/teams/session');
+  console.log('- PUT    /api/teams/session/activity');
 });
 
 // Listen for incoming requests.
