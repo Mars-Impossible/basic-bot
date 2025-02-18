@@ -360,7 +360,7 @@ class TeamsBot extends TeamsActivityHandler {
 
           
           const updatedCard = createSearchCard(query, isAISearch, selectedTypes.join(','));
-          
+
           updatedCard.content.actions = Object.entries(groupedResults).map(([type, items]) => {
             return {
               type: "Action.ShowCard",
@@ -368,31 +368,29 @@ class TeamsBot extends TeamsActivityHandler {
               style: "default",
               card: {
                 type: "AdaptiveCard",
-                body: [
-                  {
-                    type: "TextBlock",
-                    text: "Search Results",
-                    weight: "bolder",
-                    size: "medium",
-                    spacing: "medium"
-                  },
-                  {
-                    type: "ActionSet",
-                    actions: items.map(item => {
+                body: items.map(item => {
                       const detailUrl = buildDetailUrl({
                         targetType: parseInt(type),
-                        relatedId: item.id,  // 这里使用的是上面保存的 relatedId
+                        relatedId: item.id,
                         tagMenuId: item.tagMappingMenuId
                       });
                       return {
-                        type: "Action.OpenUrl",
-                        title: `${Math.round((item.percentage || 0) * 100).toString().padStart(2, ' ')}% | ${item.name || item.title}`,
-                        url: detailUrl,
-                        tooltip: `${item.text}\n${'─'.repeat(40)}`
+                        type: "Container",
+                        selectAction: {
+                          type: "Action.OpenUrl",
+                      url: detailUrl,
+                      tooltip: `${item.text}\n${'─'.repeat(40)}`
+                        },
+                    items: [
+                      {
+                          type: "TextBlock",
+                          text: `${Math.round((item.percentage || 0) * 100).toString().padStart(2, ' ')}% | ${item.name || item.title}`,
+                          wrap: true,
+                        color: "accent"
+                      }
+                    ]
                       };
                     })
-                  }
-                ]
               }
             };
           });
