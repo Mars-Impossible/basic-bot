@@ -62,8 +62,13 @@ class TeamsBot extends TeamsActivityHandler {
     });
 
     this.onMessage(async (context, next) => {
+      // 判断聊天类型
+      // const isGroupChat = context.activity.conversation.conversationType === 'channel';
+      // const chatType = isGroupChat ? 'group' : 'personal';
+      // console.log('Chat Type:', chatType);
+      console.log('Conversation Type:', context.activity.conversation.conversationType);
+      
       // 获取会话相关的唯一标识符
-      const conversationId = context.activity.conversation.id;  // 完整的会话ID
       const conversationProperties = {
         conversationId: context.activity.conversation.id,       // 会话ID
         channelId: context.activity.channelId,                 // 通道ID (例如: 'msteams')
@@ -84,6 +89,120 @@ class TeamsBot extends TeamsActivityHandler {
       
       const removedMentionText = TurnContext.removeRecipientMention(context.activity);
       const txt = removedMentionText ? removedMentionText.toLowerCase().replace(/\n|\r/g, "").trim() : "";
+
+      // 检查是否是单独的 @command
+      const soloCommands = {
+        '@accounts': '<span style="color: #D4AF37;">💡 Usage: @accounts your question ...</span>',    // 暗金黄色
+        '@contacts': '<span style="color: #D4AF37;">💡 Usage: @contacts your question ...</span>',
+        '@activities': '<span style="color: #D4AF37;">💡 Usage: @activities your question ...</span>',
+        '@funds': '<span style="color: #D4AF37;">💡 Usage: @funds your question ...</span>',
+        '@documents': '<span style="color: #D4AF37;">💡 Usage: @documents your question ...</span>'
+      };
+
+      // 检查是否是单独的命令
+      if (Object.keys(soloCommands).includes(txt)) {
+        await context.sendActivity(this.createActivityWithSuggestions({ 
+          text: soloCommands[txt],
+          textFormat: 'xml'  // 启用 HTML 格式化
+        }));
+        return;
+      }
+
+      // 添加对 help 命令的处理
+      if (txt === "/help" || txt === "/?") {
+        const helpCard = CardFactory.adaptiveCard({
+          type: "AdaptiveCard",
+          version: "1.4",
+          style: "default",
+          backgroundImage: {
+            url: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDQwIDQwIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGZpbGw9IiMxYjFiMWIiIGQ9Ik0wIDBoNDB2NDBIMHoiLz48cGF0aCBkPSJNMCAwaDQwdjQwSDB6IiBmaWxsPSIjMjEyMTIxIiBmaWxsLW9wYWNpdHk9Ii44Ii8+PC9nPjwvc3ZnPg==",
+            fillMode: "repeat"
+          },
+          body: [
+            {
+              type: "Container",
+              style: "emphasis",
+              items: [
+                {
+                  type: "TextBlock",
+                  text: "Available Commands",
+                  size: "large",
+                  weight: "bolder",
+                  color: "light",
+                  horizontalAlignment: "center",
+                  spacing: "medium"
+                },
+                {
+                  type: "Container",
+                  style: "default",
+                  items: [
+                    {
+                      type: "FactSet",
+                      facts: [
+                        {
+                          title: "**`/help`** or **`/?`**",
+                          value: "Display this help message"
+                        },
+                        {
+                          title: "**`/search`**",
+                          value: "Open the advanced search interface"
+                        },
+                        {
+                          title: "**`/clear`**",
+                          value: "Clear current conversation history"
+                        },
+                        {
+                          title: "**`@accounts`**",
+                          value: "Quick search for accounts"
+                        },
+                        {
+                          title: "**`@contacts`**",
+                          value: "Quick search for contacts"
+                        },
+                        {
+                          title: "**`@activities`**",
+                          value: "Quick search for activities"
+                        },
+                        {
+                          title: "**`@funds`**",
+                          value: "Quick search for funds"
+                        },
+                        {
+                          title: "**`@documents`**",
+                          value: "Quick search for documents"
+                        }
+                      ]
+                    }
+                  ],
+                  style: "emphasis",
+                  bleed: true,
+                  spacing: "padding"
+                }
+              ]
+            },
+            {
+              type: "Container",
+              items: [
+                {
+                  type: "TextBlock",
+                  text: "💡 **Tip**: You can use these commands anytime during our conversation",
+                  wrap: true,
+                  color: "accent",
+                  size: "small",
+                  horizontalAlignment: "center"
+                }
+              ],
+              spacing: "medium"
+            }
+          ],
+          "$schema": "http://adaptivecards.io/schemas/adaptive-card.json"
+        });
+
+        await context.sendActivity(this.createActivityWithSuggestions({ 
+          attachments: [helpCard] 
+        }));
+        return;
+      }
 
       // 添加删除历史记录的命令处理
       if (txt === "/delete history") {
@@ -281,9 +400,9 @@ class TeamsBot extends TeamsActivityHandler {
             if (selectedTypes.includes(result.targetType.toString())) {
               const type = result.targetType;
               if (!acc[type]) acc[type] = [];
-              const maxResults = context.activity.value.maxResultCount || 5; // 从 Input.Number 获取值
+              const maxResults = context.activity.value.maxResultCount || 5;
 
-              if (acc[type].length < maxResults) {  // 使用动态的限制数量
+              if (acc[type].length < maxResults) {
                 // 清理文本格式的函数
                 const cleanFormatting = (text) => {
                   return text
@@ -358,10 +477,17 @@ class TeamsBot extends TeamsActivityHandler {
             return acc;
           }, {});
 
-          
+          // 将 groupedResults 转换为数组并按第一个项目的 percentage 排序
+          const sortedGroups = Object.entries(groupedResults)
+            .sort((a, b) => {
+              const aFirstPercentage = a[1][0]?.percentage || 0;
+              const bFirstPercentage = b[1][0]?.percentage || 0;
+              return bFirstPercentage - aFirstPercentage; // 降序排序
+            });
+
           const updatedCard = createSearchCard(query, isAISearch, selectedTypes.join(','));
 
-          updatedCard.content.actions = Object.entries(groupedResults).map(([type, items]) => {
+          updatedCard.content.actions = sortedGroups.map(([type, items]) => {
             return {
               type: "Action.ShowCard",
               title: `${aiChatConfig.targetTypes.find(t => t.id === parseInt(type))?.name || 'Unknown'} (${items.length})`,
@@ -426,6 +552,7 @@ class TeamsBot extends TeamsActivityHandler {
             userName: context.activity.from.name,    // 用户名
             aadObjectId: context.activity.from.aadObjectId,  // Azure AD 对象 ID
             conversationId: context.activity.conversation.id, // Teams 会话 ID
+            // isGroupChat: isGroupChat,
             activity: context.activity  // 整个 activity 对象，以防后续需要其他信息
         };
 
