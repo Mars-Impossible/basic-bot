@@ -92,19 +92,160 @@ class TeamsBot extends TeamsActivityHandler {
 
       // 检查是否是单独的 @command
       const soloCommands = {
-        '@accounts': '<span style="color: #D4AF37;">💡 Usage: @accounts your question ...</span>',    // 暗金黄色
-        '@contacts': '<span style="color: #D4AF37;">💡 Usage: @contacts your question ...</span>',
-        '@activities': '<span style="color: #D4AF37;">💡 Usage: @activities your question ...</span>',
-        '@funds': '<span style="color: #D4AF37;">💡 Usage: @funds your question ...</span>',
-        '@documents': '<span style="color: #D4AF37;">💡 Usage: @documents your question ...</span>'
+        '@accounts': { 
+          usage: '<span style="color: #D4AF37;">💡 Usage: @accounts your question ...</span>',
+          type: 1  
+        },
+        '@contacts': { 
+          usage: '<span style="color: #D4AF37;">💡 Usage: @contacts your question ...</span>',
+          type: 2  
+        },
+        '@funds': {   // 修改这里
+          usage: '<span style="color: #D4AF37;">💡 Usage: @funds your question ...</span>',
+          type: 3  
+        },
+        '@activities': {   // 修改这里
+          usage: '<span style="color: #D4AF37;">💡 Usage: @activities your question ...</span>',
+          type: 4  
+        },
+        '@documents': { 
+          usage: '<span style="color: #D4AF37;">💡 Usage: @documents your question ...</span>',
+          type: 5  
+        }
       };
 
-      // 检查是否是单独的命令
-      if (Object.keys(soloCommands).includes(txt)) {
-        await context.sendActivity(this.createActivityWithSuggestions({ 
-          text: soloCommands[txt],
-          textFormat: 'xml'  // 启用 HTML 格式化
-        }));
+      // 检查命令类型
+      const commandMatch = Object.keys(soloCommands).find(cmd => txt.startsWith(cmd));
+      if (commandMatch) {
+        const searchTerm = txt.slice(commandMatch.length).trim();
+        
+        // 如果是单独的命令，显示使用说明
+        if (!searchTerm) {
+          await context.sendActivity(this.createActivityWithSuggestions({ 
+            text: soloCommands[commandMatch].usage,
+            textFormat: 'xml'
+          }));
+          return;
+        }
+
+        // 有搜索词，执行搜索
+        try {
+          const targetType = soloCommands[commandMatch].type;
+          const modulesFilterStr = `TargetTypes=${targetType}`;
+          const results = await contextSearch(searchTerm, modulesFilterStr);
+          
+          // 检查是否有结果
+          if (!results || results.length === 0) {
+            await context.sendActivity(this.createActivityWithSuggestions({ 
+              text: `<span style="color: #D4AF37;">No results found for "${searchTerm}" in ${commandMatch.slice(1)}</span>`,
+              textFormat: 'xml'  // 启用 HTML 格式化
+            }));
+            return;
+          }
+
+          // 文本清理函数
+          const cleanFormatting = (text) => {
+            return text
+              .replace(/[""]/g, '') // 移除双引号
+              .replace(/\*\*/g, '') // 移除markdown加粗
+              .replace(/\[|\]/g, '') // 移除方括号
+              .replace(/\(.*?\)/g, '') // 移除括号及其内容
+              .replace(/^\d+\.\s+/, '') // 移除开头的数字编号（如 "6. "）
+              .replace(/\s+/g, ' ') // 将多个空格替换为单个空格
+              .trim();
+          };
+
+          // 名称截断函数
+          const truncateName = (text) => {
+            if (!text) return '';
+            let cleanText = cleanFormatting(text);
+            if (cleanText.length <= 57) return cleanText;
+            
+            const words = cleanText.split(' ');
+            let truncatedName = '';
+            let currentLength = 0;
+            
+            for (const word of words) {
+              if (currentLength + word.length + 1 <= 53) {
+                truncatedName += (truncatedName ? ' ' : '') + word;
+                currentLength += word.length + (truncatedName ? 1 : 0);
+              } else {
+                break;
+              }
+            }
+            return truncatedName + ' ...';
+          };
+
+          // 创建结果卡片
+          const resultCard = CardFactory.adaptiveCard({
+            type: "AdaptiveCard",
+            version: "1.4",
+            body: [
+              {
+                type: "Container",
+                items: results.map(item => {
+                  // 处理描述文本
+                  const text = cleanFormatting(item.text || '');
+                  let truncatedText = '';
+                  
+                  if (text.length > 70) {
+                    const words = text.split(' ');
+                    let currentLength = 0;
+                    
+                    for (const word of words) {
+                      if (currentLength + word.length + 1 <= 67) {
+                        truncatedText += (truncatedText ? ' ' : '') + word;
+                        currentLength += word.length + (truncatedText ? 1 : 0);
+                      } else {
+                        break;
+                      }
+                    }
+                    truncatedText += ' ...';
+                  } else {
+                    truncatedText = text;
+                  }
+
+                  return {
+                    type: "Container",
+                    selectAction: {
+                      type: "Action.OpenUrl",
+                      url: buildDetailUrl({
+                        targetType: targetType,
+                        relatedId: item.relatedId,
+                        tagMenuId: item.tagMappingMenuId
+                      }),
+                      tooltip: `${truncatedText}\n${'─'.repeat(40)}`
+                    },
+                    items: [
+                      {
+                        type: "TextBlock",
+                        text: `${Math.round((item.percentage || 0) * 100).toString().padStart(2, ' ')}% | ${truncateName(item.name || item.title)}`,
+                        wrap: true,
+                        size: "medium",
+                        weight: "bolder",
+                        spacing: "none"
+                      },
+                      {
+                        type: "TextBlock",
+                        text: truncatedText,
+                        wrap: true,
+                        size: "small",
+                        color: "light",
+                        spacing: "none"
+                      }
+                    ],
+                    spacing: "medium"
+                  };
+                })
+              }
+            ]
+          });
+
+          await context.sendActivity({ attachments: [resultCard] });
+        } catch (error) {
+          console.error('Quick search error:', error);
+          await context.sendActivity('Sorry, there was an error processing your search.');
+        }
         return;
       }
 
