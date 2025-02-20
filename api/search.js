@@ -1,10 +1,10 @@
 const request = require('./request');
 
-const contextSearch = async (keywords, modulesFilterStr = 'TargetTypes=1&TargetTypes=2&TargetTypes=3&TargetTypes=4&TargetTypes=5') => {
+const contextSearch = async (keywords, modulesFilterStr = 'TargetTypes=1&TargetTypes=2&TargetTypes=3&TargetTypes=4&TargetTypes=5', count = 10) => {
   try {
     const startTime = Date.now();
     const res = await request({
-      url: `/Search/ContextSearch?${modulesFilterStr}`,
+      url: `/Search/ContextSearch?${modulesFilterStr}&count=${count}`,
       method: 'GET',
       params: {
         Keywords: keywords
@@ -19,10 +19,10 @@ const contextSearch = async (keywords, modulesFilterStr = 'TargetTypes=1&TargetT
   }
 };
 
-const keySearch = async (keywords, modulesFilterStr = 'TargetTypes=1&TargetTypes=2&TargetTypes=3') => {
+const keySearch = async (keywords, modulesFilterStr = 'TargetTypes=1&TargetTypes=2&TargetTypes=3', count = 10) => {
   try {
     const res = await request({
-      url: `/Search/KeySearch?${modulesFilterStr}`,
+      url: `/Search/KeySearch?${modulesFilterStr}&count=${count}`,
       method: 'GET',
       params: {
         Keywords: keywords

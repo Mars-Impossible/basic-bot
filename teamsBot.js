@@ -361,6 +361,7 @@ class TeamsBot extends TeamsActivityHandler {
         const query = context.activity.value.searchQuery;
         const isAISearch = context.activity.value.searchMode === "true";
         const selectedTypes = context.activity.value.searchTypes ? context.activity.value.searchTypes.split(',') : [];
+        const count = parseInt(context.activity.value.maxResultCount) || 10;
 
         // 验证是否选择了至少一个类型
         if (selectedTypes.length === 0) {
@@ -392,87 +393,83 @@ class TeamsBot extends TeamsActivityHandler {
             .join('&');
           
           const searchFunction = isAISearch ? contextSearch : keySearch;
-          const results = await searchFunction(query, modulesFilterStr);
-          
+          const results = await searchFunction(query, modulesFilterStr, count);
           
           // 修改结果分组，使用正确的字段名
           const groupedResults = results.reduce((acc, result) => {
             if (selectedTypes.includes(result.targetType.toString())) {
               const type = result.targetType;
               if (!acc[type]) acc[type] = [];
-              const maxResults = context.activity.value.maxResultCount || 5;
 
-              if (acc[type].length < maxResults) {
-                // 清理文本格式的函数
-                const cleanFormatting = (text) => {
-                  return text
-                    .replace(/[""]/g, '') // 移除双引号
-                    .replace(/\*\*/g, '') // 移除markdown加粗
-                    .replace(/\[|\]/g, '') // 移除方括号
-                    .replace(/\(.*?\)/g, '') // 移除括号及其内容
-                    .trim();
-                };
+              // 清理文本格式的函数
+              const cleanFormatting = (text) => {
+                return text
+                  .replace(/[""]/g, '') // 移除双引号
+                  .replace(/\*\*/g, '') // 移除markdown加粗
+                  .replace(/\[|\]/g, '') // 移除方括号
+                  .replace(/\(.*?\)/g, '') // 移除括号及其内容
+                  .replace(/^\d+\.\s+/, '') // 移除开头的数字编号（如 "6. "）
+                  .replace(/\s+/g, ' ') // 将多个空格替换为单个空格
+                  .trim();
+              };
 
-                const text = cleanFormatting(result.text || '');
-                let truncatedText = '';
+              const text = cleanFormatting(result.text || '');
+              let truncatedText = '';
+              
+              if (text.length > 77) {  
+                const words = text.split(' ');
+                let currentLength = 0;
                 
-                if (text.length > 100) {
-                  // 将文本分割成单词
-                  const words = text.split(' ');
-                  let currentLength = 0;
-                  
-                  // 逐个添加单词，直到接近但不超过100个字符
-                  for (const word of words) {
-                    if (currentLength + word.length + 1 <= 97) { // 97 留出空间给 "..."
-                      truncatedText += (truncatedText ? ' ' : '') + word;
-                      currentLength += word.length + (truncatedText ? 1 : 0);
-                    } else {
-                      break;
-                    }
+                for (const word of words) {
+                  if (currentLength + word.length + 1 <= 74) { 
+                    truncatedText += (truncatedText ? ' ' : '') + word;
+                    currentLength += word.length + (truncatedText ? 1 : 0);
+                  } else {
+                    break;
                   }
-                  truncatedText += ' ...';
-                } else {
-                  truncatedText = text;
                 }
-                
-                const truncateName = (text) => {
-                  if (!text) return '';
-                  
-                  // 清理特殊格式
-                  let cleanText = text
-                    .replace(/[""]/g, '') // 移除双引号
-                    .replace(/\*\*/g, '') // 移除markdown加粗
-                    .replace(/\[|\]/g, '') // 移除方括号
-                    .replace(/\(.*?\)/g, '') // 移除括号及其内容
-                    .trim();
-                  
-                  if (cleanText.length <= 60) return cleanText;
-                  
-                  const words = cleanText.split(' ');
-                  let truncatedName = '';
-                  let currentLength = 0;
-                  
-                  for (const word of words) {
-                    if (currentLength + word.length + 1 <= 57) { // 57 留出空间给 "..."
-                      truncatedName += (truncatedName ? ' ' : '') + word;
-                      currentLength += word.length + (truncatedName ? 1 : 0);
-                    } else {
-                      break;
-                    }
-                  }
-                  return truncatedName + ' ...';
-                };
-
-                acc[type].push({
-                  id: result.relatedId,
-                  name: truncateName(result.name || result.title),
-                  title: result.title,
-                  percentage: result.percentage || 0,
-                  text: truncatedText,
-                  targetType: result.targetType,
-                  tagMappingMenuId: result.tagMappingMenuId
-                });
+                truncatedText += ' ...';
+              } else {
+                truncatedText = text;
               }
+              
+              const truncateName = (text) => {
+                if (!text) return '';
+                
+                // 清理特殊格式
+                let cleanText = text
+                  .replace(/[""]/g, '') // 移除双引号
+                  .replace(/\*\*/g, '') // 移除markdown加粗
+                  .replace(/\[|\]/g, '') // 移除方括号
+                  .replace(/\(.*?\)/g, '') // 移除括号及其内容
+                  .trim();
+                
+                if (cleanText.length <= 57) return cleanText;
+                
+                const words = cleanText.split(' ');
+                let truncatedName = '';
+                let currentLength = 0;
+                
+                for (const word of words) {
+                  if (currentLength + word.length + 1 <= 53) { 
+                    truncatedName += (truncatedName ? ' ' : '') + word;
+                    currentLength += word.length + (truncatedName ? 1 : 0);
+                  } else {
+                    break;
+                  }
+                }
+                return truncatedName + ' ...';
+              };
+
+              acc[type].push({
+                id: result.relatedId,
+                name: truncateName(result.name || result.title),
+                title: result.title,
+                percentage: result.percentage || 0,
+                text: truncatedText,
+                targetType: result.targetType,
+                tagMappingMenuId: result.tagMappingMenuId
+              });
             }
             return acc;
           }, {});
@@ -504,17 +501,28 @@ class TeamsBot extends TeamsActivityHandler {
                         type: "Container",
                         selectAction: {
                           type: "Action.OpenUrl",
-                      url: detailUrl,
-                      tooltip: `${item.text}\n${'─'.repeat(40)}`
+                          url: detailUrl,
+                          tooltip: `${item.text}\n${'─'.repeat(40)}`
                         },
-                    items: [
-                      {
-                          type: "TextBlock",
-                          text: `${Math.round((item.percentage || 0) * 100).toString().padStart(2, ' ')}% | ${item.name || item.title}`,
-                          wrap: true,
-                        color: "accent"
-                      }
-                    ]
+                        items: [
+                          {
+                            type: "TextBlock",
+                            text: `${Math.round((item.percentage || 0) * 100).toString().padStart(2, ' ')}% | ${item.name || item.title}`,
+                            wrap: true,
+                            size: "medium",
+                            weight: "bolder",
+                            spacing: "none"
+                          },
+                          {
+                            type: "TextBlock",
+                            text: item.text,
+                            wrap: true,
+                            size: "small",
+                            color: "light",
+                            spacing: "none"
+                          }
+                        ],
+                        spacing: "medium"
                       };
                     })
               }

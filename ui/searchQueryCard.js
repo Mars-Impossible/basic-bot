@@ -117,7 +117,7 @@ const createSearchCard = (
                 placeholder: "5",
                 max: 10,
                 min: 1,
-                value: 5,
+                value: 10,
               },
             ],
           },
