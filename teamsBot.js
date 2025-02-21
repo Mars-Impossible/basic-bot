@@ -351,9 +351,16 @@ class TeamsBot extends TeamsActivityHandler {
       }
 
       // 添加删除历史记录的命令处理
-      if (txt === "/delete history") {
+      if (txt === "/clear") {
         try {
-          const result = await deleteHistory(context.activity.from.id);  // 使用 userId
+          const conversationContext = {
+            userId: context.activity.from.id,
+            userName: context.activity.from.name,
+            aadObjectId: context.activity.from.aadObjectId,
+            conversationId: context.activity.conversation.id
+          };
+
+          const result = await deleteHistory(conversationContext);
           
           if (result.success) {
             await context.sendActivity("Chat history has been cleared. You can start a new conversation.");
@@ -689,7 +696,6 @@ class TeamsBot extends TeamsActivityHandler {
           }));
         }
       } else {
-
         // 发送 typing 状态
         await context.sendActivity({ type: 'typing' });
 
@@ -700,17 +706,16 @@ class TeamsBot extends TeamsActivityHandler {
           suggestedActions: this.commonSuggestedActions
         });
 
-        let lastUpdateTime = 0;  
-        const updateInterval = 200;  
+        let lastUpdateTime = 0;
+        const updateInterval = 200;
 
-        // 创建 conversationContext 对象
+        // 创建完整的 conversationContext 对象
         const conversationContext = {
-            userId: context.activity.from.id,        // Teams 用户 ID
-            userName: context.activity.from.name,    // 用户名
-            aadObjectId: context.activity.from.aadObjectId,  // Azure AD 对象 ID
-            conversationId: context.activity.conversation.id, // Teams 会话 ID
-            // isGroupChat: isGroupChat,
-            activity: context.activity  // 整个 activity 对象，以防后续需要其他信息
+          userId: context.activity.from.id,
+          userName: context.activity.from.name,
+          aadObjectId: context.activity.from.aadObjectId,
+          conversationId: context.activity.conversation.id,
+          activity: context.activity
         };
 
         await chatWithSSE({
@@ -751,7 +756,7 @@ class TeamsBot extends TeamsActivityHandler {
               text: 'Sorry, there was an error processing your request.'
             });
           },
-          conversationContext  // 传入 conversationContext
+          conversationContext
         });
 
         await next();

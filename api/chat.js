@@ -58,32 +58,37 @@ async function deleteChatSession(sessionId) {
 // 修改 getOrCreateSessionId 函数
 async function getOrCreateSessionId(conversationContext) {
     try {
-        if (!conversationContext || !conversationContext.userId) {
-            throw new Error('User ID is required');
+        if (!conversationContext || !conversationContext.userId || !conversationContext.aadObjectId || !conversationContext.conversationId) {
+            throw new Error('Required context parameters missing');
         }
 
         // 1. 先尝试获取现有的映射
         const existingMapping = await axios.get(`${MOCK_API_BASE_URL}/api/teams/mapping`, {
-            params: { teamsUserId: conversationContext.userId }
+            params: {
+                teamsUserId: conversationContext.userId,
+                aadObjectId: conversationContext.aadObjectId,
+                conversationId: conversationContext.conversationId
+            }
         });
 
         if (existingMapping.data.success && existingMapping.data.data) {
-            console.log("existing mapping", existingMapping.data.data);
+            console.log("Found existing mapping:", existingMapping.data.data);
             return existingMapping.data.data.internalSessionId;
         }
 
         // 2. 如果不存在映射，创建新的内部会话
         const internalSessionId = await createNewSession();
         
-        // 创建新的映射关系
+        // 3. 创建新的映射关系
         const mappingData = {
             teamsUserId: conversationContext.userId,
             aadObjectId: conversationContext.aadObjectId,
+            teamsConversationId: conversationContext.conversationId,
             internal_session_id: internalSessionId,
             userName: conversationContext.userName
         };
 
-        console.log('Creating mapping with data:', mappingData);  // 添加日志
+        console.log('Creating new mapping with data:', mappingData);
 
         await axios.post(`${MOCK_API_BASE_URL}/api/teams/session`, mappingData);
 
@@ -100,12 +105,12 @@ async function chatWithSSE({ message, onUpdate, onFinish, onError, conversationC
         //Todo: 不应该每次都请求mapping，应该添加缓存
         const sessionId = await getOrCreateSessionId(conversationContext);
         
-        // 更新最后活动时间和 conversationId
+        // 更新最后活动时间
         await axios.put(`${MOCK_API_BASE_URL}/api/teams/session`, {
             teamsUserId: conversationContext.userId,
+            aadObjectId: conversationContext.aadObjectId,
             teamsConversationId: conversationContext.conversationId
         });
-        // const sessionId = "aa151f22-0494-4665-8d87-d6391fb06ab1";
 
         const requestData = {
             chatSessionId: sessionId,
@@ -178,16 +183,24 @@ async function chatWithSSE({ message, onUpdate, onFinish, onError, conversationC
 }
 
 // 修改 deleteHistory 函数
-async function deleteHistory(userId) {
+async function deleteHistory(conversationContext) {
     try {
+        if (!conversationContext || !conversationContext.userId || !conversationContext.aadObjectId || !conversationContext.conversationId) {
+            throw new Error('Required context parameters missing');
+        }
+
         // 1. 获取当前的 mapping
         const mappingResponse = await axios.get(`${MOCK_API_BASE_URL}/api/teams/mapping`, {
-            params: { teamsUserId: userId }
+            params: {
+                teamsUserId: conversationContext.userId,
+                aadObjectId: conversationContext.aadObjectId,
+                conversationId: conversationContext.conversationId
+            }
         });
 
-        console.log('Mapping response:', mappingResponse.data);  // 添加日志
+        console.log('Mapping response:', mappingResponse.data);
 
-        // 如果 mapping 不存在，直接返回成功（因为已经删除了）
+        // 如果 mapping 不存在，直接返回成功
         if (!mappingResponse.data.success) {
             if (mappingResponse.data.error.code === 'MAPPING_NOT_FOUND') {
                 return { success: true };
@@ -205,10 +218,14 @@ async function deleteHistory(userId) {
         
         // 3. 删除 mapping 关系
         const deleteResponse = await axios.delete(`${MOCK_API_BASE_URL}/api/teams/session`, {
-            params: { teamsUserId: userId }
+            params: {
+                teamsUserId: conversationContext.userId,
+                aadObjectId: conversationContext.aadObjectId,
+                conversationId: conversationContext.conversationId
+            }
         });
 
-        console.log('Delete response:', deleteResponse.data);  // 添加日志
+        console.log('Delete response:', deleteResponse.data);
 
         return { success: true };
     } catch (error) {

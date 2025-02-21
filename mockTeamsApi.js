@@ -5,8 +5,13 @@ const router = express.Router();
 // 设置基础 URL
 const BASE_URL = 'http://localhost:3978';
 
-// 修改数据存储结构，使用 userId 作为主键
+// 修改数据存储结构，使用复合键 Map
 const userMappingStore = new Map();
+
+// 辅助函数：生成复合键
+function generateCompositeKey(teamsUserId, aadObjectId, conversationId) {
+    return `${teamsUserId}:${aadObjectId}:${conversationId}`;
+}
 
 // 辅助函数：验证 Teams 会话 ID 格式
 function validateTeamsConversationId(id) {
@@ -19,22 +24,23 @@ router.use((req, res, next) => {
     next();
 });
 
-// 1. 获取映射关系 - 使用 userId 查询
+// 1. 获取映射关系 - 使用复合键查询
 router.get('/api/teams/mapping', (req, res) => {
     try {
-        const { teamsUserId } = req.query;
+        const { teamsUserId, aadObjectId, conversationId } = req.query;
 
-        if (!teamsUserId) {
+        if (!teamsUserId || !aadObjectId || !conversationId) {
             return res.status(400).json({
                 success: false,
                 error: {
-                    code: 'INVALID_USER_ID',
-                    message: 'Invalid Teams user ID'
+                    code: 'INVALID_PARAMETERS',
+                    message: 'Missing required parameters: teamsUserId, aadObjectId, and conversationId'
                 }
             });
         }
 
-        const mapping = userMappingStore.get(teamsUserId);
+        const compositeKey = generateCompositeKey(teamsUserId, aadObjectId, conversationId);
+        const mapping = userMappingStore.get(compositeKey);
         
         if (!mapping || mapping.is_deleted) {
             return res.json({
@@ -51,8 +57,8 @@ router.get('/api/teams/mapping', (req, res) => {
             data: {
                 internalSessionId: mapping.internal_session_id,
                 teamsUserId: teamsUserId,
-                aadObjectId: mapping.aad_object_id,
-                teamsConversationId: mapping.teams_conversation_id,
+                aadObjectId: aadObjectId,
+                teamsConversationId: conversationId,
                 userName: mapping.user_name
             }
         });
@@ -69,11 +75,12 @@ router.post('/api/teams/session', (req, res) => {
             teamsUserId,
             userName,
             aadObjectId,
-            internal_session_id
+            internal_session_id,
+            teamsConversationId
         } = req.body;
 
         // 验证必需字段
-        if (!teamsUserId || !aadObjectId || !internal_session_id) {
+        if (!teamsUserId || !aadObjectId || !internal_session_id || !teamsConversationId) {
             return res.status(400).json({
                 success: false,
                 error: {
@@ -83,8 +90,10 @@ router.post('/api/teams/session', (req, res) => {
             });
         }
 
+        const compositeKey = generateCompositeKey(teamsUserId, aadObjectId, teamsConversationId);
+
         // 检查是否存在未删除的映射
-        const existingMapping = userMappingStore.get(teamsUserId);
+        const existingMapping = userMappingStore.get(compositeKey);
         if (existingMapping && !existingMapping.is_deleted) {
             return res.status(400).json({
                 success: false,
@@ -95,12 +104,12 @@ router.post('/api/teams/session', (req, res) => {
             });
         }
 
-        // 创建新的映射（无论是否存在已删除的映射）
-        userMappingStore.set(teamsUserId, {
+        // 创建新的映射
+        userMappingStore.set(compositeKey, {
             internal_session_id,
             aad_object_id: aadObjectId,
             user_name: userName,
-            teams_conversation_id: null,  // 初始为空
+            teams_conversation_id: teamsConversationId,
             created_at: new Date(),
             last_activity_at: new Date(),
             is_deleted: false
@@ -118,12 +127,12 @@ router.post('/api/teams/session', (req, res) => {
     }
 });
 
-// 3. 更新 mapping - 添加或更新 conversationId
+// 3. 更新 mapping - 更新最后活动时间
 router.put('/api/teams/session', (req, res) => {
     try {
-        const { teamsUserId, teamsConversationId } = req.body;
+        const { teamsUserId, aadObjectId, teamsConversationId } = req.body;
 
-        if (!teamsUserId || !teamsConversationId) {
+        if (!teamsUserId || !aadObjectId || !teamsConversationId) {
             return res.status(400).json({
                 success: false,
                 error: {
@@ -133,7 +142,9 @@ router.put('/api/teams/session', (req, res) => {
             });
         }
 
-        const mapping = userMappingStore.get(teamsUserId);
+        const compositeKey = generateCompositeKey(teamsUserId, aadObjectId, teamsConversationId);
+        const mapping = userMappingStore.get(compositeKey);
+        
         if (!mapping || mapping.is_deleted) {
             return res.status(404).json({
                 success: false,
@@ -144,10 +155,9 @@ router.put('/api/teams/session', (req, res) => {
             });
         }
 
-        // 更新 conversationId
-        mapping.teams_conversation_id = teamsConversationId;
+        // 更新最后活动时间
         mapping.last_activity_at = new Date();
-        userMappingStore.set(teamsUserId, mapping);
+        userMappingStore.set(compositeKey, mapping);
 
         res.json({ success: true });
     } catch (error) {
@@ -159,19 +169,21 @@ router.put('/api/teams/session', (req, res) => {
 // 4. 删除 mapping
 router.delete('/api/teams/session', (req, res) => {
     try {
-        const { teamsUserId } = req.query;
+        const { teamsUserId, aadObjectId, conversationId } = req.query;
 
-        if (!teamsUserId) {
+        if (!teamsUserId || !aadObjectId || !conversationId) {
             return res.status(400).json({
                 success: false,
                 error: {
-                    code: 'INVALID_USER_ID',
-                    message: 'Invalid Teams user ID'
+                    code: 'MISSING_REQUIRED_FIELDS',
+                    message: 'Missing required parameters'
                 }
             });
         }
 
-        const mapping = userMappingStore.get(teamsUserId);
+        const compositeKey = generateCompositeKey(teamsUserId, aadObjectId, conversationId);
+        const mapping = userMappingStore.get(compositeKey);
+        
         if (!mapping || mapping.is_deleted) {
             return res.json({
                 success: false,
@@ -184,7 +196,7 @@ router.delete('/api/teams/session', (req, res) => {
 
         // 标记为已删除
         mapping.is_deleted = true;
-        userMappingStore.set(teamsUserId, mapping);
+        userMappingStore.set(compositeKey, mapping);
 
         res.json({ success: true });
     } catch (error) {
