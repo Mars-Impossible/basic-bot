@@ -207,6 +207,7 @@ class TeamsBot extends TeamsActivityHandler {
 
                   return {
                     type: "Container",
+                    style: "emphasis",  
                     selectAction: {
                       type: "Action.OpenUrl",
                       url: buildDetailUrl({
@@ -223,7 +224,7 @@ class TeamsBot extends TeamsActivityHandler {
                         wrap: true,
                         size: "medium",
                         weight: "bolder",
-                        spacing: "none"
+                        spacing: "small" 
                       },
                       {
                         type: "TextBlock",
@@ -231,10 +232,11 @@ class TeamsBot extends TeamsActivityHandler {
                         wrap: true,
                         size: "small",
                         color: "light",
-                        spacing: "none"
+                        spacing: "small"
                       }
                     ],
-                    spacing: "medium"
+                    spacing: "small", 
+                    padding: "default"  
                   };
                 })
               }
@@ -244,7 +246,10 @@ class TeamsBot extends TeamsActivityHandler {
           await context.sendActivity({ attachments: [resultCard] });
         } catch (error) {
           console.error('Quick search error:', error);
-          await context.sendActivity('Sorry, there was an error processing your search.');
+          await context.sendActivity(this.createActivityWithSuggestions({ 
+            text: `❗ <span style="color: #FF4444;">Sorry, there was an error processing your search.</span>`,
+            textFormat: 'xml'
+          }));
         }
         return;
       }
@@ -629,7 +634,7 @@ class TeamsBot extends TeamsActivityHandler {
             return {
               type: "Action.ShowCard",
               title: `${aiChatConfig.targetTypes.find(t => t.id === parseInt(type))?.name || 'Unknown'} (${items.length})`,
-              style: "default",
+              style: "default", //style修改后会报错
               card: {
                 type: "AdaptiveCard",
                 body: items.map(item => {
@@ -678,7 +683,10 @@ class TeamsBot extends TeamsActivityHandler {
 
         } catch (error) {
           console.error('Search error:', error);
-          await context.sendActivity('Sorry, there was an error processing your search.');
+          await context.sendActivity(this.createActivityWithSuggestions({ 
+            text: `❗ <span style="color: #FF4444;">Sorry, there was an error processing your search.</span>`,
+            textFormat: 'xml'
+          }));
         }
       } else {
 
