@@ -207,7 +207,6 @@ class TeamsBot extends TeamsActivityHandler {
 
                   return {
                     type: "Container",
-                    style: "emphasis",  
                     selectAction: {
                       type: "Action.OpenUrl",
                       url: buildDetailUrl({
@@ -235,8 +234,8 @@ class TeamsBot extends TeamsActivityHandler {
                         spacing: "small"
                       }
                     ],
-                    spacing: "small", 
-                    padding: "default"  
+                    spacing: "small",
+                    padding: "default"
                   };
                 })
               }
@@ -641,7 +640,6 @@ class TeamsBot extends TeamsActivityHandler {
             return {
               type: "Action.ShowCard",
               title: `${aiChatConfig.targetTypes.find(t => t.id === parseInt(type))?.name || 'Unknown'} (${items.length})`,
-              style: "default", //style修改后会报错
               card: {
                 type: "AdaptiveCard",
                 body: items.map(item => {
@@ -657,6 +655,7 @@ class TeamsBot extends TeamsActivityHandler {
                           url: detailUrl,
                           tooltip: `${item.text}\n${'─'.repeat(40)}`
                         },
+                        style: "default",
                         items: [
                           {
                             type: "TextBlock",
